@@ -1,0 +1,43 @@
+#!/bin/bash
+# 
+# **ENVIRONMENTAL PACKAGES SHOULD REMAIN STATIC FOR A GIVEN MODEL EXPERIMENT**
+# 
+# This shell script loads the necessary environmental packages and sets
+# environmental variables/paths that WRF looks for during compile and
+# when running.
+# 
+# Setup using modules on Derecho.
+# 
+
+module purge
+module load ncarenv/23.06
+module load intel-classic/2023.0.0
+module load ncarcompilers/1.0.0
+module load cray-mpich/8.1.25
+module load craype/2.7.20
+module load netcdf-mpi/4.9.2
+# module load netcdf/4.9.2
+
+export I_MPI_CC=icc
+export I_MPI_CXX=icpc
+export I_MPI_F90=ifort
+export I_MPI_F77=ifort
+export I_MPI_FC=ifort
+
+# Necessary if remotely working from a Mac
+export LC_ALL="en_US.UTF-8"
+
+#FOR WRF
+
+#WRF
+export WRF_EM_CORE=1
+export WRFIO_NCD_LARGE_FILE_SUPPORT=1
+
+# FOR WPS
+
+export LIBINC=/glade/u/apps/derecho/23.09/opt/view/lib64
+export JASPERLIB=$LIBINC
+export JASPERINC=$LIBINC
+export LIBPNGLIB=$LIBINC
+export LIBPNGINC=$LIBINC
+

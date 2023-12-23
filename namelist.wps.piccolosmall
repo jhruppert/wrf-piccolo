@@ -1,0 +1,39 @@
+&share
+ wrf_core = 'ARW',
+ max_dom = 1,
+ start_date = '2023-08-12_00:00:00',
+ end_date   = '2023-08-14_23:00:00',
+ interval_seconds = 3600
+ io_form_geogrid = 2,
+/
+
+&geogrid
+ parent_id         =   1,   1, 2,
+ parent_grid_ratio =   1,   5, 3,
+ i_parent_start    =   1,  80, 82,
+ j_parent_start    =   1,  46, 75,
+ e_we              =  1500, 1201, 1249,
+ e_sn              =  1500, 741, 751,
+ geog_data_res = '30s','30s','30s',
+ dx = 1000,
+ dy = 1000,
+ map_proj = 'mercator',
+ ref_lat   = 8.0,
+ ref_lon   = -27.0,
+ truelat1  = 30.0,
+! truelat2  = 60.0,
+! stand_lon = -65.0,
+ geog_data_path = '/glade/work/ruppert/WPS_GEOG/'
+ opt_geogrid_tbl_path = './geogrid/'
+/
+
+&ungrib
+ out_format = 'WPS',
+ prefix = 'FILE',
+/
+
+&metgrid
+ fg_name = 'FILE'
+ io_form_metgrid = 2, 
+ opt_metgrid_tbl_path = './metgrid/',
+/
