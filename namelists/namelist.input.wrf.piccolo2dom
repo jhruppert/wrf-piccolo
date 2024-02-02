@@ -38,7 +38,7 @@
  e_we                                = 500, 1501,
  e_sn                                = 500, 1501,
  e_vert                              = 80, 80,
- nproc_x                             = 32,
+ nproc_x                             = 48,
  nproc_y                             = 48,
  dzstretch_s                         = 1.06,
  dzstretch_u                         = 1.07,

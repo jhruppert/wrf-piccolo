@@ -1,0 +1,20 @@
+#!/bin/bash
+#PBS -N run_plotting
+#PBS -A UFSU0031
+#PBS -l walltime=06:00:00
+#PBS -j oe
+#PBS -k eod
+
+## If using CASPER
+## Select n nodes with a max of 36 CPUs per node for a total of n*36 MPI processes
+#PBS -q casper@casper-pbs
+#PBS -l select=1:ncpus=1:mem=2GB
+
+## If using MAIN
+###PBS -q main
+###PBS -l select=1:ncpus=128:mpiprocs=128:ompthreads=1
+
+module load conda
+conda activate plotting
+
+python wrf_maps.py

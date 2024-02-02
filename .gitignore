@@ -1,4 +1,9 @@
+sav_2dom_out/
+scale_tests/
+coarsedom_out/
 WRF/
 WPS/
 .vscode/
 scale_tests/
+run_plotting*
+wrftests/

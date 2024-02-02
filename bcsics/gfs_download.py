@@ -10,22 +10,14 @@ from urllib.request import build_opener
 opener = build_opener()
 
 filelist = [
-  'https://stratus.rda.ucar.edu/ds083.2/grib2/2023/2023.08/fnl_20230811_00_00.grib2',
-  'https://stratus.rda.ucar.edu/ds083.2/grib2/2023/2023.08/fnl_20230811_06_00.grib2',
-  'https://stratus.rda.ucar.edu/ds083.2/grib2/2023/2023.08/fnl_20230811_12_00.grib2',
-  'https://stratus.rda.ucar.edu/ds083.2/grib2/2023/2023.08/fnl_20230811_18_00.grib2',
-  'https://stratus.rda.ucar.edu/ds083.2/grib2/2023/2023.08/fnl_20230812_00_00.grib2',
-  'https://stratus.rda.ucar.edu/ds083.2/grib2/2023/2023.08/fnl_20230812_06_00.grib2',
-  'https://stratus.rda.ucar.edu/ds083.2/grib2/2023/2023.08/fnl_20230812_12_00.grib2',
-  'https://stratus.rda.ucar.edu/ds083.2/grib2/2023/2023.08/fnl_20230812_18_00.grib2',
-  'https://stratus.rda.ucar.edu/ds083.2/grib2/2023/2023.08/fnl_20230813_00_00.grib2',
-  'https://stratus.rda.ucar.edu/ds083.2/grib2/2023/2023.08/fnl_20230813_06_00.grib2',
-  'https://stratus.rda.ucar.edu/ds083.2/grib2/2023/2023.08/fnl_20230813_12_00.grib2',
-  'https://stratus.rda.ucar.edu/ds083.2/grib2/2023/2023.08/fnl_20230813_18_00.grib2',
-  'https://stratus.rda.ucar.edu/ds083.2/grib2/2023/2023.08/fnl_20230814_00_00.grib2',
-  'https://stratus.rda.ucar.edu/ds083.2/grib2/2023/2023.08/fnl_20230814_06_00.grib2',
-  'https://stratus.rda.ucar.edu/ds083.2/grib2/2023/2023.08/fnl_20230814_12_00.grib2',
-  'https://stratus.rda.ucar.edu/ds083.2/grib2/2023/2023.08/fnl_20230814_18_00.grib2'
+  'https://stratus.rda.ucar.edu/ds083.2/grib2/2023/2023.08/fnl_20230815_00_00.grib2',
+  'https://stratus.rda.ucar.edu/ds083.2/grib2/2023/2023.08/fnl_20230815_06_00.grib2',
+  'https://stratus.rda.ucar.edu/ds083.2/grib2/2023/2023.08/fnl_20230815_12_00.grib2',
+  'https://stratus.rda.ucar.edu/ds083.2/grib2/2023/2023.08/fnl_20230815_18_00.grib2',
+  'https://stratus.rda.ucar.edu/ds083.2/grib2/2023/2023.08/fnl_20230816_00_00.grib2',
+  'https://stratus.rda.ucar.edu/ds083.2/grib2/2023/2023.08/fnl_20230816_06_00.grib2',
+  'https://stratus.rda.ucar.edu/ds083.2/grib2/2023/2023.08/fnl_20230816_12_00.grib2',
+  'https://stratus.rda.ucar.edu/ds083.2/grib2/2023/2023.08/fnl_20230816_18_00.grib2'
 ]
 
 for file in filelist:
