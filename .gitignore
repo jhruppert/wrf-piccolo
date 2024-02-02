@@ -7,3 +7,4 @@ WPS/
 scale_tests/
 run_plotting*
 wrftests/
+plotting/figures

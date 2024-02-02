@@ -45,7 +45,7 @@ def get_dims_files(wrf_domain):
 
 wrf_domain="d01"
 output, nt, lat, lon, nz, pres = get_dims_files(wrf_domain)
-figdir = "/glade/u/home/ruppert/figures/piccolo/"
+figdir = "/glade/work/ruppert/wrf-piccolo/plotting/figures/"
 
 
 # ---
