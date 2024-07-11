@@ -151,7 +151,9 @@ def run_plot(plot_name, plt_area, wrf_domain, it_read):
 
     wrffil_read.close()
 
-    hr_tag = str(time)[0:16]
+    # hr_tag = str(time)[0:16]
+    hr_tag = str(time)[0:13]+str(time)[14:16]
+    print(hr_tag)
 
     # if i2d:
     title = plot_name+title_extra+', '+hr_tag
@@ -212,7 +214,7 @@ def run_plot(plot_name, plt_area, wrf_domain, it_read):
     plt.show()
     # format="pdf"
     format="png"
-    plt.savefig(figdir+plot_name+"_"+hr_tag[0:-3]+"."+format, format=format, bbox_inches="tight")
+    plt.savefig(figdir+plot_name+"_"+hr_tag+"."+format, format=format, bbox_inches="tight")
     plt.close()
 
 
@@ -223,9 +225,13 @@ wrf_domain="d01"
 
 plt_area=[lon[0,0], lon[0,-1], lat[0,0], lat[-1,0]] # W,E,S,N
 
-for it in range(0,nt):
+nphr=3 # nt per hour
+nday=7
+step=6*nphr
 
-    print("IT = ",it)
+# for it in range(nphr*24, nt, step):
+for it in range(5*nphr*24, nt, step):
+
     # for var_name in ["OLR", "MRef", "900-600Thick"]:
     # for var_name in ["U10", "OLR"]:
     for var_name in ["MRef", "OLR"]:

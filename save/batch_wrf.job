@@ -6,14 +6,19 @@
 #PBS -j oe
 #PBS -k eod
 ### Select n nodes with a max of 128 CPUs per node for a total of n*128 MPI processes
-#PBS -l select=18:ncpus=128:mpiprocs=128:ompthreads=1
+#PBS -l select=50:ncpus=128:mpiprocs=128:ompthreads=1
 
-# export TMPDIR=/glade/derecho/scratch/$USER/temp
-# mkdir -p $TMPDIR
+export TEMPDIR=/glade/derecho/scratch/$USER/piccolo/ndown_v1
+mkdir -p $TEMPDIR
 
 /bin/cp ../../bashrc_wrf_der bashrc_wrf
 /bin/cp ../../var_extra_output .
 source bashrc_wrf
 
-### Run the executable
+export RUNDIR=`pwd`
+cd $TEMPDIR
+cp -rafL $RUNDIR/* .
+
+#### Run the executable
 mpiexec ./wrf.exe
+
