@@ -2,6 +2,7 @@ sav_2dom_out/
 scale_tests/
 coarsedom_out/
 WRF/
+WRF_debug
 WPS/
 .vscode/
 scale_tests/
