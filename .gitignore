@@ -10,3 +10,5 @@ run_plotting*
 wrftests/
 plotting/figures
 save/
+bcsics/*grib
+bcsics/Get*-[0-9]*
