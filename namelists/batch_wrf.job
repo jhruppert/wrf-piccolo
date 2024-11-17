@@ -1,23 +1,27 @@
 #!/bin/bash
 #PBS -N runwrf
 #PBS -A UFSU0031
-#PBS -l walltime=12:00:00
+#PBS -l walltime=02:00:00
 #PBS -q main
 #PBS -j oe
 #PBS -k eod
 ### Select n nodes with a max of 128 CPUs per node for a total of n*128 MPI processes
-#PBS -l select=50:ncpus=128:mpiprocs=128:ompthreads=1
+#PBS -l select=40:ncpus=128:mpiprocs=128:ompthreads=1
 
-# export TEMPDIR=/glade/derecho/scratch/$USER/piccolo/ndown_v1
-# mkdir -p $TEMPDIR
-export SCRTCHDIR=/glade/derecho/scratch/$USER/piccolo/${testname}
-mkdir -p $SCRTCHDIR
+export testname="atl_basin"
 
+export forcing_dir="../../namelists"
+
+/bin/rm -f namelist.input
+/bin/cp $forcing_dir/namelist.input.${testname} ./namelist.input
+/bin/cp $forcing_dir/var_extra_output .
 /bin/cp ../../bashrc_wrf_der bashrc_wrf
-/bin/cp ../../namelists/var_extra_output .
 source bashrc_wrf
 
 export RUNDIR=`pwd`
+
+export SCRTCHDIR=/glade/derecho/scratch/$USER/piccolo/${testname}
+mkdir -p $SCRTCHDIR
 cd $SCRTCHDIR
 cp -rafL $RUNDIR/* .
 

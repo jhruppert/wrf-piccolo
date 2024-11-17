@@ -1,18 +1,23 @@
 #!/bin/bash
 #PBS -N runreal
-#PBS -A UOKL0041
-#PBS -l walltime=01:00:00
+#PBS -A UFSU0031
+#PBS -l walltime=01:30:00
 #PBS -q main
 #PBS -j oe
 #PBS -k eod
-### Select n nodes with 64 CPUs each for a total of n*64 MPI processes
-#PBS -l select=1:ncpus=64:mpiprocs=64:ompthreads=1
+### Select n nodes with a max of 128 CPUs per node for a total of n*128 MPI processes
+#PBS -l select=10:ncpus=128:mpiprocs=128:ompthreads=1
 
-# export TMPDIR=/glade/derecho/scratch/$USER/temp
-# mkdir -p $TMPDIR
+export testname="atl_basin"
 
+export forcing_dir="../../namelists"
+
+/bin/rm -f namelist.input
+/bin/cp $forcing_dir/namelist.input.${testname} ./namelist.input
+/bin/cp $forcing_dir/var_extra_output .
 /bin/cp ../../bashrc_wrf_der bashrc_wrf
 source bashrc_wrf
 
-### Run the executable
+#### Run the executable
 mpiexec ./real.exe
+
