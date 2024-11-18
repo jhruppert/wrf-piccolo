@@ -7,3 +7,4 @@ run_plotting*
 plotting/figures
 bcsics/*grib
 bcsics/Get*-[0-9]*
+bcsics/gefs

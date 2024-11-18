@@ -1,0 +1,67 @@
+#!/bin/bash
+#PBS -A UFSU0031
+#PBS -q main
+#PBS -j oe
+#PBS -k eod
+### Select n nodes with a max of 128 CPUs per node for a total of n*128 MPI processes
+
+# Stage 1 - real.exe
+##PBS -N coarsereal
+##PBS -l walltime=00:20:00
+##PBS -l select=10:ncpus=128:mpiprocs=128:ompthreads=1
+
+# Stage 2 - wrf.exe on coarse domains
+#PBS -N wrf_coarse
+#PBS -l walltime=12:00:00
+#PBS -l select=10:ncpus=128:mpiprocs=128:ompthreads=1
+
+# Stage 3 - ndown.exe
+##PBS -N ndown
+##PBS -l walltime=04:00:00
+##PBS -l select=10:ncpus=128:mpiprocs=128:ompthreads=1
+
+# Stage 4 - wrf.exe on fine domain
+##PBS -N wrf_fine
+##PBS -l walltime=12:00:00
+##PBS -l select=40:ncpus=128:mpiprocs=128:ompthreads=1
+
+ndown_stage=2
+# 1 - real.exe
+# 2 - wrf.exe on coarse domains
+# 3 - ndown.exe
+# 4 - wrf.exe on fine domain
+
+# Universal settings for all jobs
+testname="sept1-4"
+forcing_dir="../../namelists"
+SCRTCHDIR="/glade/derecho/scratch/$USER/piccolo/${testname}"
+mkdir -p $SCRTCHDIR
+
+# Stage-specific settings
+if [ $ndown_stage == "1" ]; then
+    /bin/cp $forcing_dir/var_extra_output .
+    /bin/cp ../../bashrc_wrf_der bashrc_wrf
+    RUNDIR=`pwd`
+    cp -rafL $RUNDIR/* $SCRTCHDIR
+    /bin/rm -f namelist.input
+    /bin/cp "$forcing_dir/namelist.input.wrf.${testname}_ndownpt${ndown_stage}" ./namelist.input
+    exec=./real.exe
+elif [ $ndown_stage == "2" ]; then
+    exec=./wrf.exe
+elif [ $ndown_stage == "3" ]; then
+    /bin/rm -f namelist.input
+    /bin/cp "$forcing_dir/namelist.input.wrf.${testname}_ndownpt${ndown_stage}" ./namelist.input
+    exec=./ndown.exe
+elif [ $ndown_stage == "4" ]; then
+    /bin/rm -f namelist.input
+    /bin/cp "$forcing_dir/namelist.input.wrf.${testname}_ndownpt${ndown_stage}" ./namelist.input
+    exec=./wrf.exe
+fi
+
+cd $SCRTCHDIR
+
+source bashrc_wrf
+
+#### Run the executable
+mpiexec $exec
+

@@ -8,12 +8,12 @@
 ### Select n nodes with a max of 128 CPUs per node for a total of n*128 MPI processes
 #PBS -l select=10:ncpus=128:mpiprocs=128:ompthreads=1
 
-export testname="atl_basin"
+export testname="sept1-4"
 
 export forcing_dir="../../namelists"
 
 /bin/rm -f namelist.input
-/bin/cp $forcing_dir/namelist.input.${testname} ./namelist.input
+/bin/cp $forcing_dir/namelist.input.wrf.${testname} ./namelist.input
 /bin/cp $forcing_dir/var_extra_output .
 /bin/cp ../../bashrc_wrf_der bashrc_wrf
 source bashrc_wrf

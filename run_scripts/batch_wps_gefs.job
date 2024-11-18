@@ -1,0 +1,27 @@
+#!/bin/bash
+#PBS -N runwps
+#PBS -A UFSU0031
+#PBS -l walltime=06:00:00
+#PBS -q main
+#PBS -j oe
+#PBS -k eod
+### Select n nodes with 64 CPUs each for a total of n*64 MPI processes
+#PBS -l select=1:ncpus=64:mpiprocs=64:ompthreads=1
+
+/bin/cp ../bashrc_wrf_der bashrc_wrf
+source bashrc_wrf
+
+nens=5
+
+gefs_path="../bcsics/gefs"
+
+for i in $(seq 1 $nens); do
+    memb_dir=$(printf "memb_%02d" $i)
+    mkdir -p $memb_dir
+    ./link_grib.csh "$gefs_path/gep0$i*"
+    ./ungrib.exe
+    rm GRIBFILE*
+    ./metgrid.exe
+    mv met_em* $memb_dir
+    rm FILE*
+done
