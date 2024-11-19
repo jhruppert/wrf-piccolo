@@ -8,3 +8,4 @@ plotting/figures
 bcsics/*grib
 bcsics/Get*-[0-9]*
 bcsics/gefs
+tests_compiled

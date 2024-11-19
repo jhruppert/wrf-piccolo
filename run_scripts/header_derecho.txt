@@ -1,0 +1,9 @@
+#!/bin/bash
+#PBS -N mEMM-JOBNAME
+#PBS -A UFSU0031
+#PBS -l walltime=TIMSTR:00
+#PBS -q QUEUE
+#PBS -j oe
+#PBS -k eod
+### Select n nodes with a max of 128 CPUs per node for a total of n*128 MPI processes
+#PBS -l NODELINE

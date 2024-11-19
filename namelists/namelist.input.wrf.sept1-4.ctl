@@ -1,0 +1,121 @@
+ &time_control
+ start_year                          = 2024, 2024, 2024,
+ start_month                         = 09, 09, 09,
+ start_day                           = 01, 01, 01,
+ start_hour                          = 00, 12, 12,
+ start_minute                        = 00, 00, 00,
+ start_second                        = 00, 00, 00,
+ end_year                            = 2024, 2024, 2024,
+ end_month                           = 09, 09, 09,
+ end_day                             = 04, 04,
+ end_hour                            = 00, 00,
+ start_minute                        = 00, 00, 00,
+ start_second                        = 00, 00, 00,
+ interval_seconds                    = 10800
+ input_from_file                     = .true.,.true.,.true.,
+ history_interval                    = 60, 20,
+ frames_per_outfile                  = 24, 72,
+ restart                             = .false.,
+ restart_interval                    = 360,
+ write_hist_at_0h_rst                = .true.,
+ io_form_history                     = 2
+ io_form_restart                     = 2
+ io_form_input                       = 2
+ io_form_boundary                    = 2
+ iofields_filename                   = "var_extra_output", "var_extra_output", "var_extra_output"
+ ignore_iofields_warning             = .true.,
+ io_form_auxinput4                   = 2
+ auxinput4_inname                    = wrflowinp_d<domain>
+ auxinput4_interval                  = 180, 180, 180,
+! io_form_auxinput2 = 2,
+! auxhist7_outname    = "hfout_d<domain>_<date>"
+! auxhist7_interval   = 5,
+ /
+
+ &domains
+ max_dom                             = 2,
+ time_step                           = 30,
+ time_step_fract_num                 = 0,
+ time_step_fract_den                 = 1,
+ use_adaptive_time_step              = .true.,
+ starting_time_step                  = -1
+ e_we                                = 1200, 1501,
+ e_sn                                = 800, 1501,
+ e_vert                              = 80, 80, 80,
+! nproc_x                             = 40,
+! nproc_y                             = 64,
+ dzstretch_s                         = 1.06,
+ dzstretch_u                         = 1.07,
+ max_dz                              = 500,
+ dzbot                               = 50,
+ p_top_requested                     = 1200,
+ num_metgrid_levels                  = 32,
+ num_metgrid_soil_levels             = 4,
+ dx                                  = 5000, 1000,
+ dy                                  = 5000, 1000,
+ grid_id                             = 1,     2, 3,
+ parent_id                           = 0,     1, 2,
+ i_parent_start                      = 1,     585, 250,
+ j_parent_start                      = 1,     251, 250,
+ parent_grid_ratio                   = 1,     5, 5,
+ parent_time_step_ratio              = 1,     5, 5,
+ feedback                            = 1,
+ smooth_option                       = 0
+ /
+
+ &physics
+ mp_physics                          = 16, 16, 16,
+ cu_physics                          = 0, 0,
+ ra_lw_physics                       = 4, 4, 4,
+ ra_sw_physics                       = 4, 4, 4,
+ bl_pbl_physics                      = 1, 1, 1,
+ sf_sfclay_physics                   = 1, 1, 1,
+ sf_surface_physics                  = 2, 2, 2,
+ radt                                = 3, 1,
+ bldt                                = 0, 0, 0,
+ cudt                                = 0, 0, 0,
+ icloud                              = 1,
+ num_land_cat                        = 21,
+ sf_urban_physics                    = 0, 0, 0,
+ fractional_seaice                   = 0,
+ sst_update                          = 1,
+ sst_skin                            = 1,
+ do_radar_ref                        = 1,
+ /
+
+ &fdda
+ /
+
+ &dynamics
+ hybrid_opt                          = 2,
+ w_damping                           = 0,
+ epssm                               = 0.5, 0.2, 0.1,
+ diff_opt                            = 1, 1,
+ km_opt                              = 4, 4,
+ diff_6th_opt                        = 0, 0,
+ diff_6th_factor                     = 0.12,   0.12, 0.12,
+ base_temp                           = 290.
+ damp_opt                            = 3,
+ zdamp                               = 10000., 10000., 10000.,
+ dampcoef                            = 0.2, 0.2, 0.2,
+ khdif                               = 0,      0, 0,
+ kvdif                               = 0,      0, 0,
+ non_hydrostatic                     = .true., .true., .true.,
+ moist_adv_opt                       = 1,      1, 1,
+ scalar_adv_opt                      = 1,      1, 1,
+ gwd_opt                             = 0,      0, 0,
+ /
+
+ &bdy_control
+ spec_bdy_width                      = 5,
+ specified                           = .true.,.false.,.false.,
+ nested                              = .false., .true., .true.,
+ /
+
+ &grib2
+ /
+
+ &namelist_quilt
+ nio_tasks_per_group = 0,
+ nio_groups = 1,
+ /

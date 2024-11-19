@@ -1,29 +1,29 @@
 &share
  wrf_core = 'ARW',
- max_dom = 3,
- start_date = '2024-09-01_12:00:00', '2024-09-01_12:00:00', '2024-09-01_12:00:00',
- end_date   = '2024-09-02_00:00:00', '2024-09-02_00:00:00', '2024-09-02_00:00:00',
-! end_date   = '2024-09-04_00:00:00', '2024-09-04_00:00:00', '2024-09-04_00:00:00',
- interval_seconds = 3600
+ max_dom = 2,
+ start_date = '2024-09-01_00:00:00', '2024-09-01_12:00:00', '2024-09-01_12:00:00',
+! end_date   = '2024-09-02_00:00:00', '2024-09-02_00:00:00', '2024-09-02_00:00:00',
+ end_date   = '2024-09-04_00:00:00', '2024-09-04_00:00:00', '2024-09-04_00:00:00',
+ interval_seconds = 10800
  io_form_geogrid = 2,
 /
 
 &geogrid
- parent_id         =   1,   1,   2,
- parent_grid_ratio =   1,   5,   5,
- i_parent_start    =   1, 149, 250,
- j_parent_start    =   1, 127, 250,
- e_we              = 400, 801, 1501,
- e_sn              = 400, 801, 1501,
+ parent_id         =   1,   1, 2,
+ parent_grid_ratio =   1,   5, 3,
+ i_parent_start    =   1,  585, 82,
+ j_parent_start    =   1,  251, 75,
+ e_we              =  1200, 1501,
+ e_sn              =  800, 1501,
  geog_data_res = '30s','30s','30s',
- dx = 25000,
- dy = 25000,
+ dx = 5000,
+ dy = 5000,
  map_proj = 'mercator',
- ref_lat   = 7.133,
- ref_lon   = -35.146,
- truelat1  = 31.568,
+ ref_lat   = 8.752,
+ ref_lon   = -34.912,
+ truelat1  = 33.267,
 ! truelat2  = 60.0,
-! stand_lon = -65.0,
+ stand_lon = 7.522,
  geog_data_path = '/glade/work/ruppert/WPS_GEOG/'
  opt_geogrid_tbl_path = './geogrid/'
 /
