@@ -1,6 +1,6 @@
 #!/bin/bash
 #PBS -N mEMM-JOBNAME
-#PBS -A UFSU0031
+#PBS -A PROJECT
 #PBS -l walltime=TIMSTR:00
 #PBS -q QUEUE
 #PBS -j oe

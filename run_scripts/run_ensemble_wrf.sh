@@ -15,6 +15,10 @@
 # James Ruppert
 # 18 Nov 2024
 
+###################################################
+# Settings
+###################################################
+
 # Selection to run REAL (initial & boundary conditions) or WRF
 run_type="real"
 run_type="wrf"
@@ -35,7 +39,13 @@ nens=5
 #    run_time='04:00' # HH:MM
 
 ###################################################
-# Supercomputer environment specifics
+# Supercomputer environment-specific settings
+
+# Current ongoing projects (totals as of as of 11/16/24):
+#  - UFSU0031: Allison's exploratory allocation (remaining: 465k)
+#  - UOKL0053: James's PICCOLO large allocation (20M)
+#  - UOKL0049: James's TC-CRF large allocation (22M)
+#  - UOKL0056: Frederick's TC small allocation (500k)
 
   system='derecho'
   if [[ ${system} == 'derecho' ]]; then
@@ -43,8 +53,9 @@ nens=5
     if [[ $run_type == "real" ]]; then
       bigN=10
     elif [[ $run_type == "wrf" ]]; then
-      bigN=40
+      bigN=33
     fi
+    project_code="UFSU0031" # Project to charge core hours against
     node_line="select=${bigN}:ncpus=128:mpiprocs=128:ompthreads=1" # Batch script node line
     submit_command="qsub" # Job submission command
     mpi_command="mpiexec" # MPI executable command
@@ -58,30 +69,35 @@ nens=5
   fi
 
 ###################################################
-# Storm-specific settings
+# Case-specific WRF job settings
 
   if [[ ${case_name} == 'sept1-4' ]]; then
   # CTL job settings
-    run_time='12:00' # HH:MM Job run time
-    # Will assume 02:00 for REAL
-  # Change settings for mechanism-denial tests
+    if [[ $run_type == "real" ]]; then
+      run_time='02:00' # HH:MM Job run time
+    elif [[ $run_type == "wrf" ]]; then
+      run_time='12:00' # HH:MM Job run time
+    fi
+    # Mechanism-denial tests
     if [[ ${test_name} == 'ncrf' ]]; then
       restart_t_stamp="2024-09-02_00:00:00"
       run_time='05:00' # HH:MM Job run time
       ndays=1
       restart_base='ctl'
     fi
-  fi # Case name
+  fi
 
 
 ###################################################
 # Start parent loop for each ensemble member
+###################################################
 
 cd $ensemb_dir
 
 # for em in 0{1..${nens}}; do # Ensemble member
 for em in 01; do # Ensemble member
 
+  # Create directory tree (e.g., as "memb_02/ctl/wrf") for ensemble member
   memb_dir="$ensemb_dir/memb_${em}"
   mkdir -p $memb_dir # -p ignores if directory already exists
   test_dir=$memb_dir/$test_name
@@ -99,15 +115,13 @@ for em in 01; do # Ensemble member
 
     # Link met_em* files to current directory
     ln -sf $memb_dir/met_em/met_em* .
-
     # Copy WRF run directory contents for selected test to current directory
     /bin/cp -rafL ${wrf_run_dir}/* .
-
-    # Need these
+    # List of additional output variables
     /bin/cp $work_dir/namelists/var_extra_output .
+    # Source file for environmental modules
     /bin/cp $sourc_file ./bashrc_wrf
-
-    # Remove extraneous namelist if exists and copy the one for the test
+    # Remove extraneous namelist if exists and grab the one needed for the test
     /bin/rm -f namelist.input
     namelist_file=${work_dir}/namelists/namelist.input.wrf.${case_name}.${test_name}
     /bin/cp $namelist_file ./namelist.input
@@ -125,6 +139,7 @@ ${mpi_command} ./real.exe
 " >> batch_real.job
 
     # Modify batch script by replacing placeholders
+    sed -i "s/PROJECT/${project_code}/g" batch_real.job
     sed -i "s/QUEUE/${queue}/g" batch_real.job
     sed -i "s/JOBNAME/${jobname}/g" batch_real.job
     sed -i "s/EMM/${em}/g" batch_real.job
@@ -132,7 +147,7 @@ ${mpi_command} ./real.exe
     # if [[ ${system} == 'oscer' ]]; then
     #   sed -i "s/NNODES/${smn}/g" batch_real.job
     # fi
-    sed -i "s/TIMSTR/02:00/g" batch_real.job
+    sed -i "s/TIMSTR/${run_time}/g" batch_real.job
 
     # Submit REAL job
     # if [[ `grep SUCCESS rsl.error.0000 | wc -l` -eq 0 ]]; then
@@ -198,6 +213,7 @@ ${mpi_command} ./wrf.exe
 " >> batch_wrf_${test_name}.job
 
     # Modify batch script by replacing placeholders
+    sed -i "s/PROJECT/${project_code}/g" batch_real.job
     sed -i "s/QUEUE/${queue}/g" batch_wrf_${test_name}.job
     sed -i "s/JOBNAME/${jobname}/g" batch_wrf_${test_name}.job
     sed -i "s/EMM/${em}/g" batch_wrf_${test_name}.job
