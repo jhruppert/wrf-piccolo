@@ -1,16 +1,34 @@
 #!/bin/bash
 # 
-# Bash script to prepare and execute WRF for ensemble simulations.
+# Bash script to prepare and execute WRF for ensemble simulations with downscaling
+# using ndown.exe for a two-domain setup.
 # 
 # WPS needs to be run before this step to generate the initial and boundary
 # condition "met_em*" files. For that step, use scripts "download_gefs.py" and
 # then "batch_wps_gefs.job" located in the "run_scripts" directory.
 # 
-# This step expects there to be a directory structure as follows:
+# Once WPS is completed, the below code assumes an existing directory tree as follows:
 #   in your scratch directory <scratch>:
-#      <scratch>/case_name/memb_01/met_em/ (etc. for each ensemble member)
+#      <scratch>/case_name/memb_01/met_em/ (for each ensemble member)
 #   where "case_name" is the name of the case (e.g., sept1-4) and "met_em/" contains
 #   the "met_em*" files corresponding to the ensemble member.
+# 
+# Stages when using NDOWN:
+#   1. Prepare coarse domain (REAL)
+#     - alias: "real1"; subdirectory: wrf_coarse
+#     - run real.exe for coarse domain
+#   2. Run coarse domain (WRF)
+#     - alias: "wrf1"; subdirectory: wrf_coarse
+#     - run wrf.exe for coarse domain
+#   3. Get new ICs in prep for ndown (REAL)
+#     - alias: "real2"; subdirectory: wrf_fine
+#     - run real.exe for coarse and fine domain
+#   4. Ndown to prepare fine domain (REAL)
+#     - alias: "real3"; subdirectory: wrf_fine
+#     - run ndown.exe
+#   5. Run fine domain (WRF)
+#     - alias: "wrf2"; subdirectory: wrf_fine
+#     - run wrf.exe for fine domain
 # 
 # James Ruppert
 # 18 Nov 2024
@@ -19,9 +37,12 @@
 # Settings
 ###################################################
 
-# Selection to run REAL (initial & boundary conditions) or WRF
-run_type="real"
-run_type="wrf"
+# Selection to run the different stages of REAL, NDOWN, WRF
+# stage="real1" # Run real for coarse domain
+# stage="wrf1" # Run wrf for coarse domain
+# stage="real2" # Get new ICs in prep for ndown
+# stage="real3" # Run ndown to prepare fine domain
+stage="wrf2" # Run wrf for fine domain
 
 # Select case name
 case_name="sept1-4"
@@ -50,9 +71,9 @@ nens=5
   system='derecho'
   if [[ ${system} == 'derecho' ]]; then
     queue="main"
-    if [[ $run_type == "real" ]]; then
+    if [[ $stage == *"real"* ]]; then
       bigN=10
-    elif [[ $run_type == "wrf" ]]; then
+    elif [[ $stage == *"wrf"* ]]; then
       bigN=33
     fi
     project_code="UFSU0031" # Project to charge core hours against
@@ -73,9 +94,9 @@ nens=5
 
   if [[ ${case_name} == 'sept1-4' ]]; then
   # CTL job settings
-    if [[ $run_type == "real" ]]; then
+    if [[ $stage == *"real"* ]]; then
       run_time='02:00' # HH:MM Job run time
-    elif [[ $run_type == "wrf" ]]; then
+    elif [[ $stage == *"wrf"* ]]; then
       run_time='12:00' # HH:MM Job run time
     fi
     # Mechanism-denial tests
@@ -87,31 +108,40 @@ nens=5
     fi
   fi
 
+###################################################
+# Set working subdirectory "wrf_dir"
+
+  if [[ $stage == "real1" ]] || [[ $stage == "wrf1" ]]; then
+    wrf_dir="wrf_coarse"
+  elif [[ $stage == "real2" ]] || [[ $stage == "real3" ]] || [[ $stage == "wrf2" ]]; then
+    wrf_dir="wrf_fine"
+  fi
+
 
 ###################################################
 # Start parent loop for each ensemble member
 ###################################################
 
-cd $ensemb_dir
-
 # for em in 0{1..${nens}}; do # Ensemble member
 for em in 01; do # Ensemble member
+
+  cd $ensemb_dir
 
   # Create directory tree (e.g., as "memb_02/ctl/wrf") for ensemble member
   memb_dir="$ensemb_dir/memb_${em}"
   mkdir -p $memb_dir # -p ignores if directory already exists
   test_dir=$memb_dir/$test_name
   mkdir -p $test_dir
-  mkdir -p $test_dir/wrf
-  cd $test_dir/wrf
+  mkdir -p $test_dir/$wrf_dir
+  cd $test_dir/$wrf_dir
 
-  echo "Running: $test_dir"
+  echo "Running ${stage} in $test_dir/$wrf_dir"
 
 
 ###################################################
-# First step: REAL
+# Running REAL and NDOWN stages
 
-  if [[ $run_type == "real" ]]; then
+  if [[ $stage == *"real"* ]]; then
 
     # Link met_em* files to current directory
     ln -sf $memb_dir/met_em/met_em* .
@@ -123,8 +153,37 @@ for em in 01; do # Ensemble member
     /bin/cp $sourc_file ./bashrc_wrf
     # Remove extraneous namelist if exists and grab the one needed for the test
     /bin/rm -f namelist.input
-    namelist_file=${work_dir}/namelists/namelist.input.wrf.${case_name}.${test_name}
-    /bin/cp $namelist_file ./namelist.input
+
+    # Prepare start data for REAL, NDOWN
+    if [[ $stage == "real1" ]]; then
+    # Real step for coarse domain
+      # Coarse namelist
+      namelist_file=${work_dir}/namelists/namelist.input.wrf.${case_name}.${test_name}.ndown_pt1
+      /bin/cp $namelist_file ./namelist.input
+      exec_name="real.exe"
+    elif [[ $stage == "real2" ]]; then
+    # Real step: get new ICs in prep for ndown
+      # Need 2-domain setup to run real, get new ICs at start-time of d02
+      namelist_file=${work_dir}/namelists/namelist.input.wrf.${case_name}.${test_name}.ndown_pt1
+      /bin/cp $namelist_file ./namelist.input
+      # Modify namelist
+      sed -i "s/start_hour.*/start_hour = 12, 12,/" namelist.input
+      sed -i "s/max_dom.*/max_dom = 2,/" namelist.input
+      exec_name="real.exe"
+    elif [[ $stage == "real3" ]]; then
+    # Ndown step
+      # Need 2-domain setup to run real, ndown
+      namelist_file=${work_dir}/namelists/namelist.input.wrf.${case_name}.${test_name}.ndown_pt1
+      /bin/cp $namelist_file ./namelist.input
+      # Modify namelist to get new ICs at start-time of d02 for ndown
+      sed -i "s/start_hour.*/start_hour = 12, 12,/" namelist.input
+      sed -i "s/interval_seconds.*/interval_seconds = 3600/" namelist.input
+      sed -i "s/max_dom.*/max_dom = 2,/" namelist.input
+      mv wrfinput_d02 wrfndi_d02
+      mv wrflowinp_d02 wrflowinp_d01
+      ln -sf ../wrf_coarse/wrfout_d* .
+      exec_name="ndown.exe"
+    fi
 
     # Create REAL batch script from header base script
     cat $work_dir/run_scripts/header_${system}.txt > batch_real.job
@@ -135,7 +194,7 @@ echo "
 source bashrc_wrf
 
 # Run REAL
-${mpi_command} ./real.exe
+${mpi_command} ./${exec_name}
 " >> batch_real.job
 
     # Modify batch script by replacing placeholders
@@ -155,31 +214,37 @@ ${mpi_command} ./real.exe
     # fi
 
 ###################################################
-# Second step: WRF
+# Running WRF
 
-  elif [[ $run_type == "wrf" ]]; then
+  elif [[ $stage == *"wrf"* ]]; then
 
   #  JOBID=$(grep Submitted submit_real_out.txt | cut -d' ' -f 4)
 
     # Remove and replace for specific test
     /bin/rm -f namelist.input
 
-    # Delete rsl-out from REAL
+    # Delete rsl-out from previous steps
     /bin/rm -f rsl.*
 
+    # Prepare start data for WRF
+    if [[ $stage == "wrf1" ]]; then
+    # Run wrf for coarse domain
+      namelist_file=${work_dir}/namelists/namelist.input.wrf.${case_name}.${test_name}.ndown_pt1
+    elif [[ $stage == "wrf2" ]]; then
+    # Run wrf for fine domain
+      namelist_file=${work_dir}/namelists/namelist.input.wrf.${case_name}.${test_name}.ndown_pt2
+      # overwrite d01 with d02 output from ndown
+      mv wrfinput_d02 wrfinput_d01
+      mv wrfbdy_d02 wrfbdy_d01
+      # Delete symbolic links to wrf_coarse output
+      /bin/rm -f wrfout_d.*
+    elif [ ${irestart} -eq 1 ]; then
     # In case of restart, grab new copy of corresponding namelist
-    if [ ${irestart} -eq 1 ]; then
       namelist_file=${work_dir}/namelists/namelist.input.wrf.${case_name}.${test_name}.restart
-    else
-      namelist_file=${work_dir}/namelists/namelist.input.wrf.${case_name}.${test_name}
     fi
     /bin/cp $namelist_file ./namelist.input
 
-    # Modify NAMELIST for nproc specs
-    # sed -i '/nproc_x/c\ nproc_x = 20,' namelist.input
-    # sed -i '/nproc_y/c\ nproc_y = 19,' namelist.input
-
-    # Create symbolic links to restart files and BCs from restart-base for mechanism-denial test
+    # Restarts/mech-denial tests: link to restart files, BCs from restart-base
     if [[ ${test_name} == *'crf'* ]] || [[ ${test_name} == *'STRAT'* ]]; then
       ln -sf "$memb_dir/${restart_base}/wrfrst_d01_${restart_t_stamp}" .
       ln -sf "$memb_dir/${restart_base}/wrfrst_d02_${restart_t_stamp}" .
@@ -201,13 +266,10 @@ ${mpi_command} ./wrf.exe
 
 mkdir -p rsl_out
 mv rsl.* rsl_out/
-# if [[ ${test_name} == 'ctl' ]]; then
-#   mv wrfinput* wrfbdy* wrflow* ../
-# fi
 " >> batch_wrf_${test_name}.job
 
     # Modify batch script by replacing placeholders
-    sed -i "s/PROJECT/${project_code}/g" batch_real.job
+    sed -i "s/PROJECT/${project_code}/g" batch_wrf_${test_name}.job
     sed -i "s/QUEUE/${queue}/g" batch_wrf_${test_name}.job
     sed -i "s/JOBNAME/${jobname}/g" batch_wrf_${test_name}.job
     sed -i "s/EMM/${em}/g" batch_wrf_${test_name}.job
@@ -224,8 +286,6 @@ mv rsl.* rsl_out/
     # tail submit_wrf_out.txt
 
   fi
-
-  cd ..
 
   done # Ensemble member loop
 
