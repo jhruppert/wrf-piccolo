@@ -38,11 +38,12 @@
 ###################################################
 
 # Selection to run the different stages of REAL, NDOWN, WRF
+# ...which should go in the order as listed
 # stage="real1" # Run real for coarse domain
-# stage="wrf1" # Run wrf for coarse domain
+stage="wrf1" # Run wrf for coarse domain
 # stage="real2" # Get new ICs in prep for ndown
 # stage="real3" # Run ndown to prepare fine domain
-stage="wrf2" # Run wrf for fine domain
+# stage="wrf2" # Run wrf for fine domain
 
 # Select case name
 case_name="sept1-4"
@@ -72,7 +73,7 @@ nens=5
   if [[ ${system} == 'derecho' ]]; then
     queue="main"
     if [[ $stage == *"real"* ]]; then
-      bigN=10
+      bigN=5
     elif [[ $stage == *"wrf"* ]]; then
       bigN=33
     fi
@@ -122,8 +123,9 @@ nens=5
 # Start parent loop for each ensemble member
 ###################################################
 
-# for em in 0{1..${nens}}; do # Ensemble member
-for em in 01; do # Ensemble member
+for em in $(seq -w 01 $nens); do # Ensemble member
+# for em in $(seq -w 03 $nens); do # Ensemble member
+# for em in 02; do # Ensemble member
 
   cd $ensemb_dir
 
@@ -172,7 +174,7 @@ for em in 01; do # Ensemble member
       exec_name="real.exe"
     elif [[ $stage == "real3" ]]; then
     # Ndown step
-      # Need 2-domain setup to run real, ndown
+      # Need 2-domain setup to run ndown
       namelist_file=${work_dir}/namelists/namelist.input.wrf.${case_name}.${test_name}.ndown_pt1
       /bin/cp $namelist_file ./namelist.input
       # Modify namelist to get new ICs at start-time of d02 for ndown
@@ -210,7 +212,7 @@ ${mpi_command} ./${exec_name}
 
     # Submit REAL job
     # if [[ `grep SUCCESS rsl.error.0000 | wc -l` -eq 0 ]]; then
-    #   ${submit} batch_real.job > submit_real_out.txt
+      ${submit_command} batch_real.job > submit_real_out.txt
     # fi
 
 ###################################################
@@ -237,7 +239,7 @@ ${mpi_command} ./${exec_name}
       mv wrfinput_d02 wrfinput_d01
       mv wrfbdy_d02 wrfbdy_d01
       # Delete symbolic links to wrf_coarse output
-      /bin/rm -f wrfout_d.*
+      /bin/rm -f wrfout_d*
     elif [ ${irestart} -eq 1 ]; then
     # In case of restart, grab new copy of corresponding namelist
       namelist_file=${work_dir}/namelists/namelist.input.wrf.${case_name}.${test_name}.restart
@@ -281,7 +283,7 @@ mv rsl.* rsl_out/
 
     # Submit WRF job
     # if [[ `grep SUCCESS rsl.error.0000 | wc -l` -eq 0 ]] then
-      # ${submit} batch_wrf_${test_name}.job > submit_wrf_out.txt
+      # ${submit_command} batch_wrf_${test_name}.job > submit_wrf_out.txt
     # fi
     # tail submit_wrf_out.txt
 
