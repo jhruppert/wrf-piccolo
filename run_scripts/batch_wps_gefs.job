@@ -18,10 +18,11 @@ gefs_path="../bcsics/gefs"
 for i in $(seq 1 $nens); do
     memb_dir=$(printf "memb_%02d" $i)
     mkdir -p $memb_dir
+    mkdir -p $memb_dir/met_em/
     ./link_grib.csh "$gefs_path/gep0$i*"
     ./ungrib.exe
     rm GRIBFILE*
     ./metgrid.exe
-    mv met_em* $memb_dir
+    mv met_em* $memb_dir/met_em/
     rm FILE*
 done

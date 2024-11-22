@@ -15,7 +15,7 @@ import requests
 
 ##### MAIN SETTINGS #####
 
-download_dir = 'bcsics/gefs/' # Directory to save files
+download_dir = '/glade/work/ruppert/wrf-piccolo/bcsics/gefs/' # Directory to save files
 
 # Start, end dates
 YYMMDDHH1 = '2024090100'
