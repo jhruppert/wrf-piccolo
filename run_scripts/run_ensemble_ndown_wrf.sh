@@ -40,10 +40,11 @@
 # Selection to run the different stages of REAL, NDOWN, WRF
 # ...which should go in the order as listed
 # stage="real1" # Run real for coarse domain
-stage="wrf1" # Run wrf for coarse domain
+# stage="wrf1" # Run wrf for coarse domain
 # stage="real2" # Get new ICs in prep for ndown
+  # -- can run real2 concurrently with wrf1
 # stage="real3" # Run ndown to prepare fine domain
-# stage="wrf2" # Run wrf for fine domain
+stage="wrf2" # Run wrf for fine domain
 
 # Select case name
 case_name="sept1-4"
@@ -123,9 +124,9 @@ nens=5
 # Start parent loop for each ensemble member
 ###################################################
 
-for em in $(seq -w 01 $nens); do # Ensemble member
-# for em in $(seq -w 03 $nens); do # Ensemble member
-# for em in 02; do # Ensemble member
+# for em in $(seq -w 01 $nens); do # Ensemble member
+# for em in $(seq -w 01 04); do # Ensemble member
+for em in 05; do # Ensemble member
 
   cd $ensemb_dir
 
@@ -136,6 +137,9 @@ for em in $(seq -w 01 $nens); do # Ensemble member
   mkdir -p $test_dir
   mkdir -p $test_dir/$wrf_dir
   cd $test_dir/$wrf_dir
+
+  # Delete rsl-out from previous steps
+  /bin/rm -f rsl.*
 
   echo "Running ${stage} in $test_dir/$wrf_dir"
 
@@ -225,9 +229,6 @@ ${mpi_command} ./${exec_name}
     # Remove and replace for specific test
     /bin/rm -f namelist.input
 
-    # Delete rsl-out from previous steps
-    /bin/rm -f rsl.*
-
     # Prepare start data for WRF
     if [[ $stage == "wrf1" ]]; then
     # Run wrf for coarse domain
@@ -283,7 +284,7 @@ mv rsl.* rsl_out/
 
     # Submit WRF job
     # if [[ `grep SUCCESS rsl.error.0000 | wc -l` -eq 0 ]] then
-      # ${submit_command} batch_wrf_${test_name}.job > submit_wrf_out.txt
+      ${submit_command} batch_wrf_${test_name}.job > submit_wrf_out.txt
     # fi
     # tail submit_wrf_out.txt
 

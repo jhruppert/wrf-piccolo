@@ -1,10 +1,10 @@
+__pycache__
 scale_tests/
-coarsedom_out/
 WRF/
 WPS/
 .vscode/
 run_plotting*
-plotting/figures
+figures
 bcsics/*grib
 bcsics/Get*-[0-9]*
 bcsics/gefs

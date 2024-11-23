@@ -14,7 +14,7 @@
 #PBS -q main
 #PBS -l select=1:ncpus=128:mpiprocs=128:ompthreads=1
 
-module load conda
-conda activate plotting
+source /glade/u/home/ruppert/.bashrc
+mamba activate plotting
 
 python wrf_maps.py
