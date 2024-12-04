@@ -18,4 +18,5 @@ First WRF tests of 2-domain setup (5km, 1km):
         - first run completed in 04:27 over 40 nodes = 23k core hours = 115k for 5 ens members
         - completed in 04:50 with 33 nodes = 18k core hours = 86k for 5 members
     - d02:
-        - completed in 
+        - completed in 12+10=22 with 33 nodes = 93k core hours = 465k for 5 members
+    - total cost for one 4-day case = 551k core hours

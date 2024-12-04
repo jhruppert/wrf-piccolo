@@ -9,7 +9,7 @@ import subprocess
 
 # Read WRF file list
 def get_wrf_file_list(filedir, tag):
-    process = subprocess.Popen(['ls '+filedir+tag+'_*'],shell=True,
+    process = subprocess.Popen(['ls '+filedir+tag],shell=True,
         stdout=subprocess.PIPE,universal_newlines=True)
     files = process.stdout.readlines()
     for ifile in range(len(files)):
@@ -29,6 +29,12 @@ def wrf_dims(wrffile):
     nz = wrffile_read.dimensions['bottom_top'].size
     npd = wrffile_read.dimensions['Time'].size
     return lat1d, lon1d, nx1, nx2, nz, npd
+
+# Read arbitrary dimension size
+def get_file_dim(infile, dimname):
+    file_read = Dataset(infile)
+    ndim = file_read.dimensions[dimname].size
+    return ndim
 
 # Read WRF variable
 def wrf_var_read(infile, varname):

@@ -44,7 +44,8 @@
 # stage="real2" # Get new ICs in prep for ndown
   # -- can run real2 concurrently with wrf1
 # stage="real3" # Run ndown to prepare fine domain
-stage="wrf2" # Run wrf for fine domain
+# stage="wrf2" # Run wrf for fine domain
+stage="wrfrst" # Restart wrf for fine domain
 
 # Select case name
 case_name="sept1-4"
@@ -55,17 +56,14 @@ test_name="ctl"
 # Number of ensemble members
 nens=5
 
-# WRF simulation details
-  jobname="${case_name}_${test_name}"
-  # Restart
-    irestart=0
-#    run_time='04:00' # HH:MM
+# Restart
+restart_t_stamp="2024-09-02_18:00:00"
 
 ###################################################
 # Supercomputer environment-specific settings
 
 # Current ongoing projects (totals as of as of 11/16/24):
-#  - UFSU0031: Allison's exploratory allocation (remaining: 465k)
+#  - XX UFSU0031: Allison's exploratory allocation (remaining: 465k)
 #  - UOKL0053: James's PICCOLO large allocation (20M)
 #  - UOKL0049: James's TC-CRF large allocation (22M)
 #  - UOKL0056: Frederick's TC small allocation (500k)
@@ -113,6 +111,7 @@ nens=5
 ###################################################
 # Set working subdirectory "wrf_dir"
 
+  jobname="${case_name}_${test_name}"
   if [[ $stage == "real1" ]] || [[ $stage == "wrf1" ]]; then
     wrf_dir="wrf_coarse"
   elif [[ $stage == "real2" ]] || [[ $stage == "real3" ]] || [[ $stage == "wrf2" ]]; then
@@ -124,9 +123,9 @@ nens=5
 # Start parent loop for each ensemble member
 ###################################################
 
-# for em in $(seq -w 01 $nens); do # Ensemble member
+for em in $(seq -w 01 $nens); do # Ensemble member
 # for em in $(seq -w 01 04); do # Ensemble member
-for em in 05; do # Ensemble member
+# for em in 05; do # Ensemble member
 
   cd $ensemb_dir
 
@@ -241,13 +240,23 @@ ${mpi_command} ./${exec_name}
       mv wrfbdy_d02 wrfbdy_d01
       # Delete symbolic links to wrf_coarse output
       /bin/rm -f wrfout_d*
-    elif [ ${irestart} -eq 1 ]; then
+    elif [[ $stage == "wrfrst" ]]; then
     # In case of restart, grab new copy of corresponding namelist
-      namelist_file=${work_dir}/namelists/namelist.input.wrf.${case_name}.${test_name}.restart
+      namelist_file=${work_dir}/namelists/namelist.input.wrf.${case_name}.${test_name}.ndown_pt2
     fi
     /bin/cp $namelist_file ./namelist.input
 
     # Restarts/mech-denial tests: link to restart files, BCs from restart-base
+    if [[ $stage == "wrfrst" ]]; then
+      sed -i "s/restart.*/restart = .true.,/" namelist.input
+      MM=`echo $restart_t_stamp | cut -d'-' -f 2`
+      DD=`echo $restart_t_stamp | cut -d'-' -f 3 | cut -d'_' -f 1`
+      HH=`echo $restart_t_stamp | cut -d'_' -f 2 | cut -d':' -f 1`
+      sed -i "s/restart.*/restart = .true.,/" namelist.input
+      sed -i "s/start_month.*/start_day = ${MM},/" namelist.input
+      sed -i "s/start_day.*/start_day = ${DD},/" namelist.input
+      sed -i "s/start_hour.*/start_hour = ${HH},/" namelist.input
+    fi
     if [[ ${test_name} == *'crf'* ]] || [[ ${test_name} == *'STRAT'* ]]; then
       ln -sf "$memb_dir/${restart_base}/wrfrst_d01_${restart_t_stamp}" .
       ln -sf "$memb_dir/${restart_base}/wrfrst_d02_${restart_t_stamp}" .

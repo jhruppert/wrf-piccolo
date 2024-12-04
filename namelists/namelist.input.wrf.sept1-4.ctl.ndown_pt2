@@ -14,7 +14,7 @@
  interval_seconds                    = 3600
  input_from_file                     = .true.,.true.,.true.,
  history_interval                    = 20,
- frames_per_outfile                  = 72,
+ frames_per_outfile                  = 1,
  restart                             = .false.,
  restart_interval                    = 360,
  write_hist_at_0h_rst                = .true.,
@@ -28,9 +28,9 @@
  auxinput4_inname                    = wrflowinp_d<domain>
  auxinput4_interval                  = 180, 180, 180,
  io_form_auxinput2 = 2,
- auxhist7_outname    = "hfout_d<domain>_<date>"
- auxhist7_interval   = 5, 5,
- io_form_auxhist7    = 2
+! auxhist7_outname    = "hfout_d<domain>_<date>"
+! auxhist7_interval   = 5, 5,
+! io_form_auxhist7    = 2
  frames_per_auxhist9 = 288, 288,
  /
 
