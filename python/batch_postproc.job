@@ -26,8 +26,8 @@
 ###PBS -l select=1:ncpus=1:mpiprocs=1:ompthreads=1
 
 # FOR SPECIAL 2D VARS
-###PBS -l select=5:ncpus=5:mpiprocs=5:ompthreads=1
-#PBS -l select=1:ncpus=1:mpiprocs=1:ompthreads=1
+#PBS -l select=5:ncpus=1:mpiprocs=1:ompthreads=1
+###PBS -l select=1:ncpus=1:mpiprocs=1:ompthreads=1
 
 # General
 ###PBS -l select=1:ncpus=1:mpiprocs=1:ompthreads=1

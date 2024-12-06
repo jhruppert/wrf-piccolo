@@ -1,0 +1,18 @@
+#!/bin/bash
+#PBS -N run_plotting
+#PBS -A UOKL0053
+#PBS -l walltime=12:00:00
+#PBS -j oe
+#PBS -k eod
+
+## If using CASPER
+#PBS -q casper@casper-pbs
+# For LARGEMEM, set mem>361 GB, ncpus<=36, ngpus=0
+# Select n nodes with a max of 36 CPUs per node for a total of n*36 MPI processes
+#PBS -l select=1:ncpus=1:mem=380GB
+
+source /glade/u/home/ruppert/.bashrc
+mamba activate plotting
+
+# python post_proc.py
+mpirun python post_proc.py

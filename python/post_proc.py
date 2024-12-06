@@ -123,11 +123,11 @@ if do_refl:
 
     # memb_dir = memb_all[comm.rank]
     for memb_dir in memb_all:
+    # for memb_dir in memb_all[-1:]:
 
         print("Processing reflectivity for "+memb_dir)
 
         varname_str = 'REFL_10CM'
-
         outdir, wrffiles, nfiles, npd = memb_dir_settings(memb_dir)
         cdo_merge_wrf_variable(outdir, wrffiles, varname_str)
 
@@ -249,80 +249,81 @@ if do_rainrate:
 
 if do_2d_special:
 
-    # from mpi4py import MPI
-    # comm = MPI.COMM_WORLD
-    # nproc = comm.Get_size()
-    # if comm.rank == 0: print(nproc)
+    from mpi4py import MPI
+    comm = MPI.COMM_WORLD
+    nproc = comm.Get_size()
+    if comm.rank == 0: print(nproc)
+    print("Rank "+str(comm.rank))
 
     # if comm.rank < 5:
 
-    for memb_dir in memb_all:
+    # for memb_dir in memb_all:
 
-        # memb_dir = memb_all[comm.rank]
+    memb_dir = memb_all[comm.rank]
 
-        print("Processing special 2D variables for "+memb_dir)
+    print("Processing special 2D variables for "+memb_dir)
 
-        outdir, wrffiles, nfiles, npd = memb_dir_settings(memb_dir)
+    outdir, wrffiles, nfiles, npd = memb_dir_settings(memb_dir)
 
-        # Read in variable from WRF files
-        for ifile in range(nfiles):
+    # Read in variable from WRF files
+    for ifile in range(nfiles):
 
-            # Open the WRF file
-            file = wrffiles[ifile]
-            ds = Dataset(file)
+        # Open the WRF file
+        file = wrffiles[ifile]
+        ds = Dataset(file)
 
-            qv = getvar(ds, "QVAPOR", timeidx=ALL_TIMES)#, cache=cache)
-            pwrf = getvar(ds, "p", units='Pa', timeidx=ALL_TIMES)#, cache=cache)
-            # hght = getvar(dset, "zstag", units='m', timeidx=ALL_TIMES)#, cache=cache)
-            # tmpk = getvar(dset, "tk", timeidx=ALL_TIMES)#, cache=cache)
-            # rho = density_moist(tmpk, qv, pwrf)
+        qv = getvar(ds, "QVAPOR", timeidx=ALL_TIMES)#, cache=cache)
+        pwrf = getvar(ds, "p", units='Pa', timeidx=ALL_TIMES)#, cache=cache)
+        # hght = getvar(dset, "zstag", units='m', timeidx=ALL_TIMES)#, cache=cache)
+        # tmpk = getvar(dset, "tk", timeidx=ALL_TIMES)#, cache=cache)
+        # rho = density_moist(tmpk, qv, pwrf)
 
-            # Get dz
-            # dz = np.zeros(qv.shape)
-            # for iz in range(nz):
-            #     dz[:,iz] = hght[:,iz+1] - hght[:,iz]
-            # Get dp
-            dp = pwrf.differentiate('bottom_top')*-1
+        # Get dz
+        # dz = np.zeros(qv.shape)
+        # for iz in range(nz):
+        #     dz[:,iz] = hght[:,iz+1] - hght[:,iz]
+        # Get dp
+        dp = pwrf.differentiate('bottom_top')*-1
 
-            # Process variables
+        # Process variables
 
-            # pclass
-            var = wrf_pclass(ds, dp)
-            if ifile == 0:
-                pclass_all = var
-            else:
-                pclass_all = xr.concat((pclass_all, var), 'Time')
+        # pclass
+        var = wrf_pclass(ds, dp)
+        if ifile == 0:
+            pclass_all = var
+        else:
+            pclass_all = xr.concat((pclass_all, var), 'Time')
 
-            # pw
-            var = vert_int(qv, dp)
-            if ifile == 0:
-                pw_all = var
-            else:
-                pw_all = xr.concat((pw_all, var), 'Time')
+        # pw
+        var = vert_int(qv, dp)
+        if ifile == 0:
+            pw_all = var
+        else:
+            pw_all = xr.concat((pw_all, var), 'Time')
 
-            # pw_sat
-            qvsat = get_rv_sat(ds, pwrf)
-            qvsat = xr.DataArray(qvsat, coords=qv.coords, dims=qv.dims, attrs=qv.attrs)
-            var = vert_int(qvsat, dp)
-            if ifile == 0:
-                pw_sat_all = var
-            else:
-                pw_sat_all = xr.concat((pw_sat_all, var), 'Time')
+        # pw_sat
+        qvsat = get_rv_sat(ds, pwrf)
+        qvsat = xr.DataArray(qvsat, coords=qv.coords, dims=qv.dims, attrs=qv.attrs)
+        var = vert_int(qvsat, dp)
+        if ifile == 0:
+            pw_sat_all = var
+        else:
+            pw_sat_all = xr.concat((pw_sat_all, var), 'Time')
 
-            ds.close()
+        ds.close()
 
-        # Remove duplicate time steps
-        pclass_all = pclass_all.drop_duplicates(dim="Time", keep='first')
-        pw_all     = pw_all.drop_duplicates(dim="Time", keep='first')
-        pw_sat_all = pw_sat_all.drop_duplicates(dim="Time", keep='first')
+    # Remove duplicate time steps
+    pclass_all = pclass_all.drop_duplicates(dim="Time", keep='first')
+    pw_all     = pw_all.drop_duplicates(dim="Time", keep='first')
+    pw_sat_all = pw_sat_all.drop_duplicates(dim="Time", keep='first')
 
-        # Write out the variables
-        var_name='pclass'
-        write_ncfile(outdir, pclass_all, var_name)
-        var_name='pw'
-        write_ncfile(outdir, pw_all, var_name)
-        var_name='pw_sat'
-        write_ncfile(outdir, pw_sat_all, var_name)
+    # Write out the variables
+    var_name='pclass'
+    write_ncfile(outdir, pclass_all, var_name)
+    var_name='pw'
+    write_ncfile(outdir, pw_all, var_name)
+    var_name='pw_sat'
+    write_ncfile(outdir, pw_sat_all, var_name)
 
     print("Done writing out special 2D variables")
 
