@@ -44,106 +44,18 @@ do_2d_special = True # Set select=1:ncpus=1:mpiprocs=1:ompthreads=1
 
 datdir = "/glade/derecho/scratch/ruppert/piccolo/"
 # datdir = "/glade/campaign/univ/uokl0053/"
-datdir = "/ourdisk/hpc/radclouds/auto_archive_notyet/tape_2copies/piccolo/"
+# datdir = "/ourdisk/hpc/radclouds/auto_archive_notyet/tape_2copies/piccolo/"
 
 case = "sept1-4"
 test_process = "ctl"
 wrf_dom = "wrf_fine"
 nmem = 5 # number of ensemble members
 
-########################################################
-# Local functions and single-use calls
-########################################################
-
-# Get variable lists
-vars2d = var_list_2d()
-# vars3d = var_list_3d()
-
 # Ens-member string tags (e.g., memb_01, memb_02, etc.)
 memb0=1 # Starting member to read
 memb_nums_str=np.arange(memb0,nmem+memb0,1).astype(str)
 nustr = np.char.zfill(memb_nums_str, 2)
 memb_all=np.char.add('memb_',nustr)
-
-# Get ensemble member settings
-def memb_dir_settings(memb_dir):
-    wrfdir = datdir+case+'/'+memb_dir+'/'+test_process+"/"+wrf_dom+"/"
-    outdir = wrfdir+"post_proc/"
-    os.makedirs(outdir, exist_ok=True)
-    # Get WRF file list, dimensions
-    wrffiles = get_wrf_file_list(wrfdir, "wrfout_d01*")
-    # hffiles = get_wrf_file_list(wrfdir, "hfout_d01*")
-    lat, lon, nx1, nx2, nz, npd = wrf_dims(wrffiles[0])
-    nfiles = len(wrffiles)
-    # New vertical dimension for pressure levels
-    # dp = 25 # hPa
-    # pres = np.arange(1000, 25, -dp)
-    # nznew = len(pres)
-    return outdir, wrffiles, nfiles, npd
-
-# Calculate rain rate as centered difference
-def calculate_rainrate(rainnc_all):
-    rainrate = rainnc_all.copy()
-    nt_all = rainrate.shape[0]
-    rainrate[0] = 0
-    rainrate[nt_all-1] = np.nan
-    rainrate[1:-1] = (rainnc_all.values[2:] - rainnc_all.values[:-2])*0.5
-    rainrate *= npd # Convert to mm/day
-    return rainrate
-
-# Read and reduce variables for a given time step
-def get_2d_special_vars_itimestep(ds, it_file):
-
-    qv = getvar(ds, "QVAPOR", timeidx=it_file)#, cache=cache)
-    pwrf = getvar(ds, "p", units='Pa', timeidx=it_file)#, cache=cache)
-    # hght = getvar(dset, "zstag", units='m', timeidx=ALL_TIMES)#, cache=cache)
-    # tmpk = getvar(dset, "tk", timeidx=ALL_TIMES)#, cache=cache)
-    # rho = density_moist(tmpk, qv, pwrf)
-
-    # Get dz
-    # dz = np.zeros(qv.shape)
-    # for iz in range(nz):
-    #     dz[:,iz] = hght[:,iz+1] - hght[:,iz]
-    # Get dp
-    dp = pwrf.differentiate('bottom_top')*-1
-
-    # pclass
-    ipclass = wrf_pclass(ds, dp, it_file)#ALL_TIMES)
-    # pw
-    ipw = vert_int(qv, dp)
-    # pw_sat
-    qvsat = get_rv_sat(ds, pwrf, it_file)#ALL_TIMES)
-    qvsat = xr.DataArray(qvsat, coords=qv.coords, dims=qv.dims, attrs=qv.attrs)
-    ipw_sat = vert_int(qvsat, dp)
-
-    return ipclass, ipw, ipw_sat
-
-# Loop over WRF input file time steps to read and reduce variables
-def get_2d_special_vars_iwrf(file):
-
-    ds = Dataset(file)
-    print("Opened "+file)
-
-    # Loop over dataset time steps
-    nt_file = ds.dimensions['Time'].size
-    for it_file in range(nt_file):
-    # for it_file in range(5):
-        print()
-        print("IT file: ",it_file)
-
-        ipclass, ipw, ipw_sat = get_2d_special_vars_itimestep(ds, it_file)
-        if it_file == 0:
-            pclass_ifile = ipclass
-            pw_ifile = ipw
-            pw_sat_ifile = ipw_sat
-        else:
-            pclass_ifile = xr.concat((pclass_ifile, ipclass), 'Time')
-            pw_ifile = xr.concat((pw_ifile, ipw), 'Time')
-            pw_sat_ifile = xr.concat((pw_sat_ifile, ipw_sat), 'Time')
-
-    ds.close()
-
-    return pclass_ifile, pw_ifile, pw_sat_ifile
 
 ########################################################
 # Use CDO to process basic 2D variables
@@ -155,6 +67,9 @@ if do_2d_vars:
     comm = MPI.COMM_WORLD
     nproc = comm.Get_size()
 
+    # Get variable list
+    vars2d = var_list_2d()
+
     for memb_dir in memb_all:
     # for memb_dir in memb_all[0:1]:
 
@@ -163,7 +78,7 @@ if do_2d_vars:
 
         varname_str = vars2d[ivar].upper()
 
-        outdir, wrffiles, nfiles, npd = memb_dir_settings(memb_dir)
+        outdir, wrffiles, nfiles, npd = memb_dir_settings(datdir, case, test_process, wrf_dom, memb_dir)
         cdo_merge_wrf_variable(outdir, wrffiles, varname_str)
 
         # comm.barrier()
@@ -183,7 +98,7 @@ if do_refl:
         print("Processing reflectivity for "+memb_dir)
 
         varname_str = 'REFL_10CM'
-        outdir, wrffiles, nfiles, npd = memb_dir_settings(memb_dir)
+        outdir, wrffiles, nfiles, npd = memb_dir_settings(datdir, case, test_process, wrf_dom, memb_dir)
         cdo_merge_wrf_variable(outdir, wrffiles, varname_str)
 
         # comm.barrier()
@@ -202,7 +117,7 @@ if do_acre:
 
     for memb_dir in memb_all:
 
-        outdir, wrffiles, nfiles, npd = memb_dir_settings(memb_dir)
+        outdir, wrffiles, nfiles, npd = memb_dir_settings(datdir, case, test_process, wrf_dom, memb_dir)
 
         # Remove first if exists
         operation_str = 'rm -rf '+outdir+'LWacre.nc '+outdir+'SWacre.nc'
@@ -285,12 +200,12 @@ if do_rainrate:
 
     for memb_dir in memb_all:
 
-        outdir, wrffiles, nfiles, npd = memb_dir_settings(memb_dir)
+        outdir, wrffiles, nfiles, npd = memb_dir_settings(datdir, case, test_process, wrf_dom, memb_dir)
 
         ds = xr.open_dataset(outdir+'RAINNC.nc')
         rainnc = ds['RAINNC']
         # Get rainrate
-        rainrate = calculate_rainrate(rainnc)
+        rainrate = calculate_rainrate(rainnc, npd)
         # rainrate = xr.DataArray(rainrate, coords=rainnc.coords, dims=rainnc.dims, attrs=rainnc.attrs)
         # Write out
         var_name='rainrate'
@@ -304,6 +219,8 @@ if do_rainrate:
 
 if do_2d_special:
 
+    var_list_special = ['pclass', 'pw', 'vmf']
+
     from mpi4py import MPI
     comm = MPI.COMM_WORLD
     nproc = comm.Get_size()
@@ -314,10 +231,9 @@ if do_2d_special:
 
     # for memb_dir in memb_all:
     memb_dir = memb_all[comm.rank]
+    outdir, wrffiles, nfiles, npd = memb_dir_settings(datdir, case, test_process, wrf_dom, memb_dir)
 
     print("Processing special 2D variables for "+memb_dir)
-
-    outdir, wrffiles, nfiles, npd = memb_dir_settings(memb_dir)
 
     # Read in variable from WRF files
     for ifile in range(nfiles):
@@ -325,36 +241,40 @@ if do_2d_special:
 
         # Open the WRF file
         wrffile = wrffiles[ifile]
+        print("Processing "+wrffile)
 
-        # Process variables
-        pclass_ifile, pw_ifile, pw_sat_ifile = get_2d_special_vars_iwrf(wrffile)
+        # Get variables for entire file
+        vars_ifile = get_2d_special_vars_iwrf(wrffile, var_list_special)
+        # pclass_ifile, pw_ifile, pw_sat_ifile, vmf_ifile = get_2d_special_vars_iwrf(wrffile)
 
         # Concatenate variables
-
         if ifile == 0:
             # pclass
             pclass_all = pclass_ifile
             # pw
             pw_all = pw_ifile
             # pw_sat
-            pw_sat_all = pw_sat_ifile
+            # pw_sat_all = pw_sat_ifile
+            # vertical mass flux
+            vmf_all = vmf_ifile
         else:
             pclass_all = xr.concat((pclass_all, pclass_ifile), 'Time')
             pw_all = xr.concat((pw_all, pw_ifile), 'Time')
-            pw_sat_all = xr.concat((pw_sat_all, pw_sat_ifile), 'Time')
+            # pw_sat_all = xr.concat((pw_sat_all, pw_sat_ifile), 'Time')
+            vmf_all = xr.concat((vmf_all, vmf_ifile), 'Time')
 
     # Remove duplicate time steps
     pclass_all = pclass_all.drop_duplicates(dim="Time", keep='first')
     pw_all     = pw_all.drop_duplicates(dim="Time", keep='first')
-    pw_sat_all = pw_sat_all.drop_duplicates(dim="Time", keep='first')
+    # pw_sat_all = pw_sat_all.drop_duplicates(dim="Time", keep='first')
 
     # Write out the variables
     var_name='pclass'
     write_ncfile(outdir, pclass_all, var_name)
     var_name='pw'
     write_ncfile(outdir, pw_all, var_name)
-    var_name='pw_sat'
-    write_ncfile(outdir, pw_sat_all, var_name)
+    # var_name='pw_sat'
+    # write_ncfile(outdir, pw_sat_all, var_name)
 
 print("Done writing out special 2D variables")
 

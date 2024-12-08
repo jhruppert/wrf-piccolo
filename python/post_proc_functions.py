@@ -11,6 +11,77 @@ from read_wrf_piccolo import *
 import numpy as np
 from precip_class import *
 from thermo_functions import *
+import os
+
+##########################################
+# Get ensemble member settings
+##########################################
+
+def memb_dir_settings(datdir, case, test_process, wrf_dom, memb_dir):
+    wrfdir = datdir+case+'/'+memb_dir+'/'+test_process+"/"+wrf_dom+"/"
+    outdir = wrfdir+"post_proc/"
+    os.makedirs(outdir, exist_ok=True)
+    # Get WRF file list, dimensions
+    wrffiles = get_wrf_file_list(wrfdir, "wrfout_d01*")
+    lat, lon, nx1, nx2, nz, npd = wrf_dims(wrffiles[0])
+    nfiles = len(wrffiles)
+    # New vertical dimension for pressure levels
+    # dp = 25 # hPa
+    # pres = np.arange(1000, 25, -dp)
+    # nznew = len(pres)
+    return outdir, wrffiles, nfiles, npd
+
+##########################################
+# Get special 2D variables
+##########################################
+
+# Read and reduce variables for a given time step
+def get_2d_special_vars_itimestep(ds, it_file):
+    qv = getvar(ds, "QVAPOR", timeidx=it_file)#, cache=cache)
+    dp = get_dp(ds, timeidx=it_file) # Pa
+    # pclass
+    ipclass = wrf_pclass(ds, dp, it_file)#ALL_TIMES)
+    # pw
+    ipw = vert_int(qv, dp)
+    # pw_sat
+    # qvsat = get_rv_sat(ds, pwrf, it_file)#ALL_TIMES)
+    # tmpk = getvar(ds, 'tk', timeidx=it_file) # K
+    # qvsat = rv_saturation(tmpk.values, pwrf.values) # kg/kg
+    # qvsat = xr.DataArray(qvsat, coords=qv.coords, dims=qv.dims, attrs=qv.attrs)
+    # ipw_sat = vert_int(qvsat, dp)
+    # vertical mass flux
+    wa = getvar(ds, "wa", timeidx=it_file)
+    ivmf = vert_int(wa, dp)
+    return ipclass, ipw, ivmf#, ipw_sat
+
+# Loop over WRF input file time steps to read and reduce variables
+def get_2d_special_vars_iwrf(file):
+    ds = Dataset(file)
+    # Loop over dataset time steps
+    nt_file = ds.dimensions['Time'].size
+    for it_file in range(nt_file):
+        ipclass, ipw, ivmf = get_2d_special_vars_itimestep(ds, it_file)
+        if it_file == 0:
+            pclass_ifile = ipclass
+            pw_ifile = ipw
+            # pw_sat_ifile = ipw_sat
+            vmf_ifile = ivmf
+        else:
+            pclass_ifile = xr.concat((pclass_ifile, ipclass), 'Time')
+            pw_ifile = xr.concat((pw_ifile, ipw), 'Time')
+            # pw_sat_ifile = xr.concat((pw_sat_ifile, ipw_sat), 'Time')
+            vmf_ifile = xr.concat((vmf_ifile, ivmf), 'Time')
+    ds.close()
+    return pclass_ifile, pw_ifile, vmf_ifile#, pw_sat_ifile
+
+##########################################
+# Get the vertical pressure differential
+##########################################
+
+def get_dp(ds, timeidx=1):
+    pwrf = getvar(ds, "p", units='Pa', timeidx=timeidx)
+    dp = pwrf.differentiate('bottom_top')*-1
+    return dp
 
 ##########################################
 # Compute vertical integral
@@ -34,14 +105,17 @@ def vert_int(var, dp):
     return var_int
 
 ##########################################
-# Get saturation mixing ratio
+# Calculate rain rate as centered difference
 ##########################################
 
-def get_rv_sat(ds, pwrf, timeidx):
-    # Read in temp [K] and use that + pr to calculate saturation mixing ratio
-    tmpk = getvar(ds, 'tk', timeidx=timeidx) # K
-    rv_sat = rv_saturation(tmpk.values, pwrf.values) # kg/kg
-    return rv_sat
+def calculate_rainrate(rainnc_all, npd):
+    rainrate = rainnc_all.copy()
+    nt_all = rainrate.shape[0]
+    rainrate[0] = 0
+    rainrate[nt_all-1] = np.nan
+    rainrate[1:-1] = (rainnc_all.values[2:] - rainnc_all.values[:-2])*0.5
+    rainrate *= npd # Convert to mm/day
+    return rainrate
 
 ##########################################
 # Run shell command
@@ -126,13 +200,6 @@ def remove_duplicate_times_ncfile(infile):
         # print('Repeated time records found and removed.')
     return None
 
-# From an open Xarray dataset or dataarray
-def remove_duplicate_times(invar):
-    # Identify unique time records
-    _, index = np.unique(invar['Time'], return_index=True)
-    # remove duplicates
-    return invar.isel(Time=index)
-
 ##########################################
 # Write out variable to a NetCDF file
 ##########################################
@@ -190,7 +257,7 @@ def wrf_pclass(ds, dp, timeidx=1):
     g = 9.81 # m/s2
     # q_int = np.sum(q_var*dp[np.newaxis,...], axis=2)/g
     q_int = (q_vars*dp.expand_dims(dim={'QVAR':5}, axis=0)).sum(dim='bottom_top')/g
-    pclass = precip_class(np.array(q_int))
+    pclass = precip_class(q_int.values)
     return xr.DataArray(pclass, coords=ivar[0].coords, dims=ivar[0].dims, attrs=ivar[0].attrs, name='cloud_class')
 
 ##########################################
