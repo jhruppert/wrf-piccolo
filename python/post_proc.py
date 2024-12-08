@@ -44,6 +44,7 @@ do_2d_special = True # Set select=1:ncpus=1:mpiprocs=1:ompthreads=1
 
 datdir = "/glade/derecho/scratch/ruppert/piccolo/"
 # datdir = "/glade/campaign/univ/uokl0053/"
+datdir = "/ourdisk/hpc/radclouds/auto_archive_notyet/tape_2copies/piccolo/"
 
 case = "sept1-4"
 test_process = "ctl"
@@ -89,6 +90,60 @@ def calculate_rainrate(rainnc_all):
     rainrate[1:-1] = (rainnc_all.values[2:] - rainnc_all.values[:-2])*0.5
     rainrate *= npd # Convert to mm/day
     return rainrate
+
+# Read and reduce variables for a given time step
+def get_2d_special_vars_itimestep(ds, it_file):
+
+    qv = getvar(ds, "QVAPOR", timeidx=it_file)#, cache=cache)
+    pwrf = getvar(ds, "p", units='Pa', timeidx=it_file)#, cache=cache)
+    # hght = getvar(dset, "zstag", units='m', timeidx=ALL_TIMES)#, cache=cache)
+    # tmpk = getvar(dset, "tk", timeidx=ALL_TIMES)#, cache=cache)
+    # rho = density_moist(tmpk, qv, pwrf)
+
+    # Get dz
+    # dz = np.zeros(qv.shape)
+    # for iz in range(nz):
+    #     dz[:,iz] = hght[:,iz+1] - hght[:,iz]
+    # Get dp
+    dp = pwrf.differentiate('bottom_top')*-1
+
+    # pclass
+    ipclass = wrf_pclass(ds, dp, it_file)#ALL_TIMES)
+    # pw
+    ipw = vert_int(qv, dp)
+    # pw_sat
+    qvsat = get_rv_sat(ds, pwrf, it_file)#ALL_TIMES)
+    qvsat = xr.DataArray(qvsat, coords=qv.coords, dims=qv.dims, attrs=qv.attrs)
+    ipw_sat = vert_int(qvsat, dp)
+
+    return ipclass, ipw, ipw_sat
+
+# Loop over WRF input file time steps to read and reduce variables
+def get_2d_special_vars_iwrf(file):
+
+    ds = Dataset(file)
+    print("Opened "+file)
+
+    # Loop over dataset time steps
+    nt_file = ds.dimensions['Time'].size
+    for it_file in range(nt_file):
+    # for it_file in range(5):
+        print()
+        print("IT file: ",it_file)
+
+        ipclass, ipw, ipw_sat = get_2d_special_vars_itimestep(ds, it_file)
+        if it_file == 0:
+            pclass_ifile = ipclass
+            pw_ifile = ipw
+            pw_sat_ifile = ipw_sat
+        else:
+            pclass_ifile = xr.concat((pclass_ifile, ipclass), 'Time')
+            pw_ifile = xr.concat((pw_ifile, ipw), 'Time')
+            pw_sat_ifile = xr.concat((pw_sat_ifile, ipw_sat), 'Time')
+
+    ds.close()
+
+    return pclass_ifile, pw_ifile, pw_sat_ifile
 
 ########################################################
 # Use CDO to process basic 2D variables
@@ -258,7 +313,6 @@ if do_2d_special:
     # if comm.rank < 5:
 
     # for memb_dir in memb_all:
-
     memb_dir = memb_all[comm.rank]
 
     print("Processing special 2D variables for "+memb_dir)
@@ -267,50 +321,27 @@ if do_2d_special:
 
     # Read in variable from WRF files
     for ifile in range(nfiles):
+    # for ifile in range(1):
 
         # Open the WRF file
-        file = wrffiles[ifile]
-        ds = Dataset(file)
-
-        qv = getvar(ds, "QVAPOR", timeidx=ALL_TIMES)#, cache=cache)
-        pwrf = getvar(ds, "p", units='Pa', timeidx=ALL_TIMES)#, cache=cache)
-        # hght = getvar(dset, "zstag", units='m', timeidx=ALL_TIMES)#, cache=cache)
-        # tmpk = getvar(dset, "tk", timeidx=ALL_TIMES)#, cache=cache)
-        # rho = density_moist(tmpk, qv, pwrf)
-
-        # Get dz
-        # dz = np.zeros(qv.shape)
-        # for iz in range(nz):
-        #     dz[:,iz] = hght[:,iz+1] - hght[:,iz]
-        # Get dp
-        dp = pwrf.differentiate('bottom_top')*-1
+        wrffile = wrffiles[ifile]
 
         # Process variables
+        pclass_ifile, pw_ifile, pw_sat_ifile = get_2d_special_vars_iwrf(wrffile)
 
-        # pclass
-        var = wrf_pclass(ds, dp)
+        # Concatenate variables
+
         if ifile == 0:
-            pclass_all = var
+            # pclass
+            pclass_all = pclass_ifile
+            # pw
+            pw_all = pw_ifile
+            # pw_sat
+            pw_sat_all = pw_sat_ifile
         else:
-            pclass_all = xr.concat((pclass_all, var), 'Time')
-
-        # pw
-        var = vert_int(qv, dp)
-        if ifile == 0:
-            pw_all = var
-        else:
-            pw_all = xr.concat((pw_all, var), 'Time')
-
-        # pw_sat
-        qvsat = get_rv_sat(ds, pwrf)
-        qvsat = xr.DataArray(qvsat, coords=qv.coords, dims=qv.dims, attrs=qv.attrs)
-        var = vert_int(qvsat, dp)
-        if ifile == 0:
-            pw_sat_all = var
-        else:
-            pw_sat_all = xr.concat((pw_sat_all, var), 'Time')
-
-        ds.close()
+            pclass_all = xr.concat((pclass_all, pclass_ifile), 'Time')
+            pw_all = xr.concat((pw_all, pw_ifile), 'Time')
+            pw_sat_all = xr.concat((pw_sat_all, pw_sat_ifile), 'Time')
 
     # Remove duplicate time steps
     pclass_all = pclass_all.drop_duplicates(dim="Time", keep='first')
@@ -325,7 +356,7 @@ if do_2d_special:
     var_name='pw_sat'
     write_ncfile(outdir, pw_sat_all, var_name)
 
-    print("Done writing out special 2D variables")
+print("Done writing out special 2D variables")
 
 ########################################################
 ########################################################

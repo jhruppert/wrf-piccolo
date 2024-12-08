@@ -37,9 +37,9 @@ def vert_int(var, dp):
 # Get saturation mixing ratio
 ##########################################
 
-def get_rv_sat(ds, pwrf):
+def get_rv_sat(ds, pwrf, timeidx):
     # Read in temp [K] and use that + pr to calculate saturation mixing ratio
-    tmpk = getvar(ds, 'tk', timeidx=ALL_TIMES) # K
+    tmpk = getvar(ds, 'tk', timeidx=timeidx) # K
     rv_sat = rv_saturation(tmpk.values, pwrf.values) # kg/kg
     return rv_sat
 
@@ -177,13 +177,13 @@ def write_ncfile(outdir, var, var_name):#, dims_set, pres=None, do_pres=False): 
 #     q_int = np.sum(q_var*dp[np.newaxis,...], axis=2)/g
 #     return precip_class(q_int)
 # Now using Xarray
-def wrf_pclass(ds, dp):
+def wrf_pclass(ds, dp, timeidx=1):
     # Read in and vertically integrate mixing ratios
     q_list = ['QCLOUD', 'QRAIN','QICE', 'QSNOW', 'QGRAUP']
     q_vars = []
     for icld in q_list:
         # ivar = wrf_var_read(infile,q_list[ivar]) # kg/kg
-        ivar = getvar(ds, icld, timeidx=ALL_TIMES) # kg/kg
+        ivar = getvar(ds, icld, timeidx=timeidx) # kg/kg
         q_vars.append(ivar)
     # q_var = np.stack(q_var, axis=0)
     q_vars = xr.concat(q_vars, dim='QVAR')
