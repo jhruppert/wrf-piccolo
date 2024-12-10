@@ -32,56 +32,69 @@ def memb_dir_settings(datdir, case, test_process, wrf_dom, memb_dir):
     return outdir, wrffiles, nfiles, npd
 
 ##########################################
-# Get special 2D variables
+# For special 2D variables
 ##########################################
 
+# Use dictionary passing to get multiple uses of the same variable wherever possible
+def var_readcheck(varname, dict_in):
+    try:
+    # Check if exists
+        return dict_in[varname], dict_in
+    except:
+    # If not, create
+        if varname == 'dp':
+            try:
+                dict_in[varname] = dict_in['pwrf'].differentiate('bottom_top')*-1
+            except:
+                dict_in['pwrf'] = getvar(dict_in['ds'], "p", units='Pa', timeidx=dict_in['timeidx']) # Pa
+                dict_in[varname] = dict_in['pwrf'].differentiate('bottom_top')*-1 # Pa
+        elif varname == 'qv':
+            dict_in[varname] = getvar(dict_in['ds'], "QVAPOR", timeidx=dict_in['timeidx']) # kg/kg
+        elif varname == 'pwrf':
+            dict_in[varname] = getvar(dict_in['ds'], "p", units='Pa', timeidx=dict_in['timeidx']) # Pa
+        elif varname == 'tmpk':
+            dict_in[varname] = getvar(dict_in['ds'], "tk", timeidx=dict_in['timeidx']) # K
+        return dict_in[varname], dict_in
+
 # Read and reduce variables for a given time step
-def get_2d_special_vars_itimestep(ds, it_file):
-    qv = getvar(ds, "QVAPOR", timeidx=it_file)#, cache=cache)
-    dp = get_dp(ds, timeidx=it_file) # Pa
-    # pclass
-    ipclass = wrf_pclass(ds, dp, it_file)#ALL_TIMES)
-    # pw
-    ipw = vert_int(qv, dp)
-    # pw_sat
-    # qvsat = get_rv_sat(ds, pwrf, it_file)#ALL_TIMES)
-    # tmpk = getvar(ds, 'tk', timeidx=it_file) # K
-    # qvsat = rv_saturation(tmpk.values, pwrf.values) # kg/kg
-    # qvsat = xr.DataArray(qvsat, coords=qv.coords, dims=qv.dims, attrs=qv.attrs)
-    # ipw_sat = vert_int(qvsat, dp)
-    # vertical mass flux
-    wa = getvar(ds, "wa", timeidx=it_file)
-    ivmf = vert_int(wa, dp)
-    return ipclass, ipw, ivmf#, ipw_sat
+def get_2d_special_vars_it(ds, it_file, var_list):
+    vars_it = {}
+    dict_pass = {'ds': ds, 'timeidx': it_file}
+    for ivar_str in var_list:
+        if ivar_str == "pclass":
+            dp, dict_pass = var_readcheck('dp', dict_pass)
+            ivar = wrf_pclass(ds, dp, it_file)
+        elif ivar_str == "pw":
+            qv, dict_pass = var_readcheck('qv', dict_pass)
+            ivar = vert_int(qv, dp)
+        elif ivar_str == "pw_sat":
+            tmpk, dict_pass = var_readcheck('tmpk', dict_pass)
+            pwrf, dict_pass = var_readcheck('pwrf', dict_pass)
+            ivar, dict_pass = rv_saturation(tmpk.values, pwrf.values) # kg/kg
+        elif ivar_str == "vmf":
+            wa = getvar(ds, "wa", timeidx=it_file)
+            dp, dict_pass = var_readcheck('dp', dict_pass)
+            ivar = vert_int(wa, dp)
+        vars_it[ivar_str] = ivar
+    return vars_it
 
 # Loop over WRF input file time steps to read and reduce variables
-def get_2d_special_vars_iwrf(file):
+def get_2d_special_vars_ifile(file, var_list):
     ds = Dataset(file)
     # Loop over dataset time steps
     nt_file = ds.dimensions['Time'].size
-    for it_file in range(nt_file):
-        ipclass, ipw, ivmf = get_2d_special_vars_itimestep(ds, it_file)
-        if it_file == 0:
-            pclass_ifile = ipclass
-            pw_ifile = ipw
-            # pw_sat_ifile = ipw_sat
-            vmf_ifile = ivmf
-        else:
-            pclass_ifile = xr.concat((pclass_ifile, ipclass), 'Time')
-            pw_ifile = xr.concat((pw_ifile, ipw), 'Time')
-            # pw_sat_ifile = xr.concat((pw_sat_ifile, ipw_sat), 'Time')
-            vmf_ifile = xr.concat((vmf_ifile, ivmf), 'Time')
+    vars_ifile = {}
+    # for it_file in range(nt_file):
+    for it_file in range(2):
+        print("IT: ", it_file)
+        vars_it = get_2d_special_vars_it(ds, it_file, var_list)
+        for ivar_str in var_list:
+            if it_file == 0:
+                vars_ifile[ivar_str] = vars_it[ivar_str]
+            else:
+                vars_ifile[ivar_str] = xr.concat((vars_ifile[ivar_str], vars_it[ivar_str]), 'Time')
     ds.close()
-    return pclass_ifile, pw_ifile, vmf_ifile#, pw_sat_ifile
-
-##########################################
-# Get the vertical pressure differential
-##########################################
-
-def get_dp(ds, timeidx=1):
-    pwrf = getvar(ds, "p", units='Pa', timeidx=timeidx)
-    dp = pwrf.differentiate('bottom_top')*-1
-    return dp
+    return vars_ifile
 
 ##########################################
 # Compute vertical integral
@@ -356,6 +369,11 @@ def get_metadata(var_name):#, nt, nz, nx1, nx2):
     elif var_name == 'refl_10cm':
         description = 'radar reflectivity at lowest model level'
         units = 'dBZ'
+        # dims = ('nt','nx1','nx2')
+        # dim_set = [dims, (nt,nx1,nx2)]
+    elif var_name == 'vmf':
+        description = 'vertical mass flux'
+        units = 'kg/m^2/s'
         # dims = ('nt','nx1','nx2')
         # dim_set = [dims, (nt,nx1,nx2)]
     #######################################################

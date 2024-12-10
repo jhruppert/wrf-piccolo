@@ -33,6 +33,7 @@ do_rainrate = False # Set select=1:ncpus=1:mpiprocs=1:ompthreads=1
 do_refl = False # Set select=1:ncpus=1:mpiprocs=1:ompthreads=1
 # Special 2D variables
 do_2d_special = True # Set select=1:ncpus=1:mpiprocs=1:ompthreads=1
+vars_2dspecial = ['pclass', 'pw', 'vmf']#, 'pw_sat']
 # # Basic 3D variables
 # do_3d_vars = False
 # # Special 3D variables
@@ -219,23 +220,21 @@ if do_rainrate:
 
 if do_2d_special:
 
-    var_list_special = ['pclass', 'pw', 'vmf']
-
     from mpi4py import MPI
     comm = MPI.COMM_WORLD
     nproc = comm.Get_size()
     if comm.rank == 0: print(nproc)
     print("Rank "+str(comm.rank))
 
-    # if comm.rank < 5:
-
     # for memb_dir in memb_all:
     memb_dir = memb_all[comm.rank]
-    outdir, wrffiles, nfiles, npd = memb_dir_settings(datdir, case, test_process, wrf_dom, memb_dir)
 
     print("Processing special 2D variables for "+memb_dir)
 
+    outdir, wrffiles, nfiles, npd = memb_dir_settings(datdir, case, test_process, wrf_dom, memb_dir)
+
     # Read in variable from WRF files
+    vars_alltime = {}
     for ifile in range(nfiles):
     # for ifile in range(1):
 
@@ -244,39 +243,22 @@ if do_2d_special:
         print("Processing "+wrffile)
 
         # Get variables for entire file
-        vars_ifile = get_2d_special_vars_iwrf(wrffile, var_list_special)
-        # pclass_ifile, pw_ifile, pw_sat_ifile, vmf_ifile = get_2d_special_vars_iwrf(wrffile)
+        vars_ifile = get_2d_special_vars_ifile(wrffile, vars_2dspecial)
 
         # Concatenate variables
-        if ifile == 0:
-            # pclass
-            pclass_all = pclass_ifile
-            # pw
-            pw_all = pw_ifile
-            # pw_sat
-            # pw_sat_all = pw_sat_ifile
-            # vertical mass flux
-            vmf_all = vmf_ifile
-        else:
-            pclass_all = xr.concat((pclass_all, pclass_ifile), 'Time')
-            pw_all = xr.concat((pw_all, pw_ifile), 'Time')
-            # pw_sat_all = xr.concat((pw_sat_all, pw_sat_ifile), 'Time')
-            vmf_all = xr.concat((vmf_all, vmf_ifile), 'Time')
+        for ivar_str in vars_2dspecial:
+            if ifile == 0:
+                vars_alltime[ivar_str] = vars_ifile[ivar_str]
+            else:
+                vars_alltime[ivar_str] = xr.concat((vars_alltime[ivar_str], vars_ifile[ivar_str]), 'Time')
 
-    # Remove duplicate time steps
-    pclass_all = pclass_all.drop_duplicates(dim="Time", keep='first')
-    pw_all     = pw_all.drop_duplicates(dim="Time", keep='first')
-    # pw_sat_all = pw_sat_all.drop_duplicates(dim="Time", keep='first')
+    for ivar_str in vars_2dspecial:
+        # Remove duplicate time steps
+        vars_alltime[ivar_str] = vars_alltime[ivar_str].drop_duplicates(dim="Time", keep='first')
+        # Write out the variables
+        write_ncfile(outdir, vars_alltime[ivar_str], ivar_str)
 
-    # Write out the variables
-    var_name='pclass'
-    write_ncfile(outdir, pclass_all, var_name)
-    var_name='pw'
-    write_ncfile(outdir, pw_all, var_name)
-    # var_name='pw_sat'
-    # write_ncfile(outdir, pw_sat_all, var_name)
-
-print("Done writing out special 2D variables")
+    print("Done writing out special 2D variables")
 
 ########################################################
 ########################################################
