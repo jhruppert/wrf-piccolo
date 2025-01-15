@@ -28,13 +28,13 @@ do_2d_vars = False # Set select=1:ncpus=19:mpiprocs=19:ompthreads=1
 # 2D ACRE variables
 do_acre = False # Set select=1:ncpus=8:mpiprocs=8:ompthreads=1
 # Rainrate
-do_rainrate = False # Set select=1:ncpus=1:mpiprocs=1:ompthreads=1
+do_rainrate = True # Set select=5:ncpus=1:mpiprocs=1:ompthreads=1
 # Reflectivity (lowest model level)
 do_refl = False # Set select=1:ncpus=1:mpiprocs=1:ompthreads=1
 # Special 2D variables
-do_2d_special = True # Set select=1:ncpus=1:mpiprocs=1:ompthreads=1
+do_2d_special = False # Set select=5:ncpus=1:mpiprocs=1:ompthreads=1
 vars_2dspecial = ['pclass', 'pw', 'vmf']#, 'pw_sat']
-# # Basic 3D variables
+# Basic 3D variables
 # do_3d_vars = False
 # # Special 3D variables
 # do_3d_special = False
@@ -43,14 +43,16 @@ vars_2dspecial = ['pclass', 'pw', 'vmf']#, 'pw_sat']
 # Directories and test selection
 ########################################################
 
+case = "sept1-4"
+# test_process = "ctl"
+test_process = "ncrf12h"
+
+wrf_dom = "wrf_fine"
+nmem = 5 # number of ensemble members
+
 datdir = "/glade/derecho/scratch/ruppert/piccolo/"
 # datdir = "/glade/campaign/univ/uokl0053/"
 # datdir = "/ourdisk/hpc/radclouds/auto_archive_notyet/tape_2copies/piccolo/"
-
-case = "sept1-4"
-test_process = "ctl"
-wrf_dom = "wrf_fine"
-nmem = 5 # number of ensemble members
 
 # Ens-member string tags (e.g., memb_01, memb_02, etc.)
 memb0=1 # Starting member to read
@@ -199,20 +201,28 @@ if do_acre:
 
 if do_rainrate:
 
-    for memb_dir in memb_all:
+    from mpi4py import MPI
+    comm = MPI.COMM_WORLD
+    nproc = comm.Get_size()
+    print("Rank "+str(comm.rank))
 
-        outdir, wrffiles, nfiles, npd = memb_dir_settings(datdir, case, test_process, wrf_dom, memb_dir)
+    # for memb_dir in memb_all:
+    memb_dir = memb_all[comm.rank]
 
-        ds = xr.open_dataset(outdir+'RAINNC.nc')
-        rainnc = ds['RAINNC']
-        # Get rainrate
-        rainrate = calculate_rainrate(rainnc, npd)
-        # rainrate = xr.DataArray(rainrate, coords=rainnc.coords, dims=rainnc.dims, attrs=rainnc.attrs)
-        # Write out
-        var_name='rainrate'
-        write_ncfile(outdir, rainrate, var_name)
+    print("Processing rainrate for "+memb_dir)
 
-        print("Done writing out rainrate")
+    outdir, wrffiles, nfiles, npd = memb_dir_settings(datdir, case, test_process, wrf_dom, memb_dir)
+
+    ds = xr.open_dataset(outdir+'RAINNC.nc')
+    rainnc = ds['RAINNC']
+    # Get rainrate
+    rainrate = calculate_rainrate(rainnc, npd)
+    # rainrate = xr.DataArray(rainrate, coords=rainnc.coords, dims=rainnc.dims, attrs=rainnc.attrs)
+    # Write out
+    var_name='rainrate'
+    write_ncfile(outdir, rainrate, var_name)
+
+    print("Done writing out rainrate")
 
 ########################################################
 # Loop over ensemble members for special 2D variables
@@ -223,7 +233,6 @@ if do_2d_special:
     from mpi4py import MPI
     comm = MPI.COMM_WORLD
     nproc = comm.Get_size()
-    if comm.rank == 0: print(nproc)
     print("Rank "+str(comm.rank))
 
     # for memb_dir in memb_all:

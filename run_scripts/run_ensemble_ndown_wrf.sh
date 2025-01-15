@@ -45,19 +45,27 @@
   # -- can run real2 concurrently with wrf1
 # stage="real3" # Run ndown to prepare fine domain
 # stage="wrf2" # Run wrf for fine domain
-stage="wrfrst" # Restart wrf for fine domain
+stage="wrfrst" # Restart wrf for fine domain, including for sens. tests
 
 # Select case name
 case_name="sept1-4"
 
 # Select test (e.g., "ctl", "ncrf", etc.)
-test_name="ctl"
+# test_name="ctl"
+test_name="ncrf12h"
+
+# Select test to use namelist, BCs, ICs from for restart
+restart_base="ctl"
+
+# Select compiled wrf version to use (usually ctl)
+wrf_compiled="ctl"
 
 # Number of ensemble members
 nens=5
 
 # Restart
-restart_t_stamp="2024-09-02_18:00:00"
+restart_t_stamp_start="2024-09-02_00:00:00"
+restart_t_stamp_end="2024-09-03_00:00:00"
 
 ###################################################
 # Supercomputer environment-specific settings
@@ -76,14 +84,14 @@ restart_t_stamp="2024-09-02_18:00:00"
     elif [[ $stage == *"wrf"* ]]; then
       bigN=33
     fi
-    project_code="UFSU0031" # Project to charge core hours against
+    project_code="UOKL0053" # Project to charge core hours against
     node_line="select=${bigN}:ncpus=128:mpiprocs=128:ompthreads=1" # Batch script node line
     submit_command="qsub" # Job submission command
     mpi_command="mpiexec" # MPI executable command
     work_dir=${work}/wrf-piccolo # parent directory containing a bunch of stuff
     ensemb_dir=${scratch}/piccolo/${case_name} # where each ensemble simulation is run
     sourc_file=${work_dir}/bashrc_wrf_der # source file for setting environment variables
-    wrf_run_dir=$work_dir/tests_compiled/$test_name # directory with all WRF run code for selected test
+    wrf_run_dir=$work_dir/tests_compiled/$wrf_compiled # directory with all WRF run code for selected test
   elif [[ ${system} == 'oscer' ]]; then
     echo "NEED TO UPDATE THIS"
     exit 0
@@ -100,11 +108,8 @@ restart_t_stamp="2024-09-02_18:00:00"
       run_time='12:00' # HH:MM Job run time
     fi
     # Mechanism-denial tests
-    if [[ ${test_name} == 'ncrf' ]]; then
-      restart_t_stamp="2024-09-02_00:00:00"
-      run_time='05:00' # HH:MM Job run time
-      ndays=1
-      restart_base='ctl'
+    if [[ ${test_name} == *"crf"* ]]; then
+      run_time='12:00' # HH:MM Job run time
     fi
   fi
 
@@ -114,7 +119,7 @@ restart_t_stamp="2024-09-02_18:00:00"
   jobname="${case_name}_${test_name}"
   if [[ $stage == "real1" ]] || [[ $stage == "wrf1" ]]; then
     wrf_dir="wrf_coarse"
-  elif [[ $stage == "real2" ]] || [[ $stage == "real3" ]] || [[ $stage == "wrf2" ]]; then
+  elif [[ $stage == "real2" ]] || [[ $stage == "real3" ]] || [[ $stage == "wrf2" ]] || [[ $stage == "wrfrst" ]]; then
     wrf_dir="wrf_fine"
   fi
 
@@ -125,7 +130,7 @@ restart_t_stamp="2024-09-02_18:00:00"
 
 for em in $(seq -w 01 $nens); do # Ensemble member
 # for em in $(seq -w 01 04); do # Ensemble member
-# for em in 05; do # Ensemble member
+# for em in 01; do # Ensemble member
 
   cd $ensemb_dir
 
@@ -137,10 +142,19 @@ for em in $(seq -w 01 $nens); do # Ensemble member
   mkdir -p $test_dir/$wrf_dir
   cd $test_dir/$wrf_dir
 
+  echo "Running ${stage} in $test_dir/$wrf_dir"
+
+  # Prepare run directory for any stage
+  # Copy WRF run directory contents for selected test to current directory
+  /bin/cp -rafL ${wrf_run_dir}/* .
+  # List of additional output variables
+  /bin/cp $work_dir/namelists/var_extra_output .
+  # Source file for environmental modules
+  /bin/cp $sourc_file ./bashrc_wrf
+  # Remove extraneous namelist if exists and grab the one needed for the test
+  /bin/rm -f namelist.input
   # Delete rsl-out from previous steps
   /bin/rm -f rsl.*
-
-  echo "Running ${stage} in $test_dir/$wrf_dir"
 
 
 ###################################################
@@ -150,14 +164,6 @@ for em in $(seq -w 01 $nens); do # Ensemble member
 
     # Link met_em* files to current directory
     ln -sf $memb_dir/met_em/met_em* .
-    # Copy WRF run directory contents for selected test to current directory
-    /bin/cp -rafL ${wrf_run_dir}/* .
-    # List of additional output variables
-    /bin/cp $work_dir/namelists/var_extra_output .
-    # Source file for environmental modules
-    /bin/cp $sourc_file ./bashrc_wrf
-    # Remove extraneous namelist if exists and grab the one needed for the test
-    /bin/rm -f namelist.input
 
     # Prepare start data for REAL, NDOWN
     if [[ $stage == "real1" ]]; then
@@ -225,9 +231,6 @@ ${mpi_command} ./${exec_name}
 
   #  JOBID=$(grep Submitted submit_real_out.txt | cut -d' ' -f 4)
 
-    # Remove and replace for specific test
-    /bin/rm -f namelist.input
-
     # Prepare start data for WRF
     if [[ $stage == "wrf1" ]]; then
     # Run wrf for coarse domain
@@ -242,27 +245,33 @@ ${mpi_command} ./${exec_name}
       /bin/rm -f wrfout_d*
     elif [[ $stage == "wrfrst" ]]; then
     # In case of restart, grab new copy of corresponding namelist
-      namelist_file=${work_dir}/namelists/namelist.input.wrf.${case_name}.${test_name}.ndown_pt2
+      namelist_file=${work_dir}/namelists/namelist.input.wrf.${case_name}.${restart_base}.ndown_pt2
     fi
     /bin/cp $namelist_file ./namelist.input
 
     # Restarts/mech-denial tests: link to restart files, BCs from restart-base
     if [[ $stage == "wrfrst" ]]; then
-      sed -i "s/restart.*/restart = .true.,/" namelist.input
-      MM=`echo $restart_t_stamp | cut -d'-' -f 2`
-      DD=`echo $restart_t_stamp | cut -d'-' -f 3 | cut -d'_' -f 1`
-      HH=`echo $restart_t_stamp | cut -d'_' -f 2 | cut -d':' -f 1`
-      sed -i "s/restart.*/restart = .true.,/" namelist.input
-      sed -i "s/start_month.*/start_day = ${MM},/" namelist.input
+      MM=`echo $restart_t_stamp_start | cut -d'-' -f 2`
+      DD=`echo $restart_t_stamp_start | cut -d'-' -f 3 | cut -d'_' -f 1`
+      HH=`echo $restart_t_stamp_start | cut -d'_' -f 2 | cut -d':' -f 1`
+      sed -i "s/ restart .*/ restart = .true.,/" namelist.input
+      sed -i "s/start_month.*/start_month = ${MM},/" namelist.input
       sed -i "s/start_day.*/start_day = ${DD},/" namelist.input
       sed -i "s/start_hour.*/start_hour = ${HH},/" namelist.input
+      MM=`echo $restart_t_stamp_end | cut -d'-' -f 2`
+      DD=`echo $restart_t_stamp_end | cut -d'-' -f 3 | cut -d'_' -f 1`
+      HH=`echo $restart_t_stamp_end | cut -d'_' -f 2 | cut -d':' -f 1`
+      sed -i "s/end_month.*/end_month = ${MM},/" namelist.input
+      sed -i "s/end_day.*/end_day = ${DD},/" namelist.input
+      sed -i "s/end_hour.*/end_hour = ${HH},/" namelist.input
     fi
     if [[ ${test_name} == *'crf'* ]] || [[ ${test_name} == *'STRAT'* ]]; then
-      ln -sf "$memb_dir/${restart_base}/wrfrst_d01_${restart_t_stamp}" .
-      ln -sf "$memb_dir/${restart_base}/wrfrst_d02_${restart_t_stamp}" .
-      ln -sf "$memb_dir/${restart_base}/wrfbdy_d01" .
-      ln -sf "$memb_dir/${restart_base}/wrflowinp_d01" .
-      ln -sf "$memb_dir/${restart_base}/wrflowinp_d02" .
+      ln -sf "$memb_dir/${restart_base}/wrf_fine/wrfrst_d01_${restart_t_stamp_start}" .
+      ln -sf "$memb_dir/${restart_base}/wrf_fine/wrfbdy_d01" .
+      ln -sf "$memb_dir/${restart_base}/wrf_fine/wrflowinp_d01" .
+      ln -sf "$memb_dir/${restart_base}/wrf_fine/wrf.exe" .
+      # Turn off cloud-radiation forcing
+      sed -i "s/icloud.*/icloud = 0,/" namelist.input
     fi
 
     # Create WRF batch script from header base script

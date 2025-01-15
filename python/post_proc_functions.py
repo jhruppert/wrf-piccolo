@@ -84,9 +84,9 @@ def get_2d_special_vars_ifile(file, var_list):
     # Loop over dataset time steps
     nt_file = ds.dimensions['Time'].size
     vars_ifile = {}
-    # for it_file in range(nt_file):
-    for it_file in range(2):
-        print("IT: ", it_file)
+    for it_file in range(nt_file):
+    # for it_file in range(2):
+        # print("IT: ", it_file)
         vars_it = get_2d_special_vars_it(ds, it_file, var_list)
         for ivar_str in var_list:
             if it_file == 0:
@@ -128,6 +128,7 @@ def calculate_rainrate(rainnc_all, npd):
     rainrate[nt_all-1] = np.nan
     rainrate[1:-1] = (rainnc_all.values[2:] - rainnc_all.values[:-2])*0.5
     rainrate *= npd # Convert to mm/day
+    rainrate /= 24 # Convert to mm/hr
     return rainrate
 
 ##########################################
@@ -353,7 +354,8 @@ def get_metadata(var_name):#, nt, nz, nx1, nx2):
         # dim_set = [dims, (nt,6,nx1,nx2)]
     elif var_name == 'rainrate':
         description = 'rainrate (centered diff)'
-        units = 'mm/day'
+        # units = 'mm/day'
+        units = 'mm/hr'
         # dims = ('nt','nx1','nx2')
         # dim_set = [dims, (nt,nx1,nx2)]
     elif var_name == 'pw':
