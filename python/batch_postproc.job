@@ -2,6 +2,7 @@
 #PBS -N run_plotting
 #PBS -A UOKL0053
 #PBS -l walltime=12:00:00
+###PBS -l walltime=00:10:00
 #PBS -j oe
 #PBS -k eod
 
@@ -20,13 +21,14 @@
 ###PBS -l select=1:ncpus=8:mpiprocs=8:ompthreads=1
 
 # FOR RAINRATE
-#PBS -l select=5:ncpus=1:mpiprocs=1:ompthreads=1
+###PBS -l select=5:ncpus=1:mpiprocs=1:ompthreads=1
 
 # FOR REFLECTIVITY
 ###PBS -l select=1:ncpus=1:mpiprocs=1:ompthreads=1
 
 # FOR SPECIAL 2D VARS
-###PBS -l select=5:ncpus=1:mpiprocs=1:ompthreads=1
+# FOR 3D VARS
+#PBS -l select=5:ncpus=1:mpiprocs=1:ompthreads=1
 
 # General
 ###PBS -l select=1:ncpus=1:mpiprocs=1:ompthreads=1

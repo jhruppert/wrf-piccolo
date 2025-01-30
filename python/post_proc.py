@@ -14,9 +14,7 @@
 # jruppert@ou.edu
 # 11/2/2024
 
-from netCDF4 import Dataset
 import numpy as np
-from wrf import getvar, ALL_TIMES#, vinterp
 from post_proc_functions import *
 import os
 import xarray as xr
@@ -28,15 +26,15 @@ do_2d_vars = False # Set select=1:ncpus=19:mpiprocs=19:ompthreads=1
 # 2D ACRE variables
 do_acre = False # Set select=1:ncpus=8:mpiprocs=8:ompthreads=1
 # Rainrate
-do_rainrate = True # Set select=5:ncpus=1:mpiprocs=1:ompthreads=1
+do_rainrate = False # Set select=5:ncpus=1:mpiprocs=1:ompthreads=1
 # Reflectivity (lowest model level)
 do_refl = False # Set select=1:ncpus=1:mpiprocs=1:ompthreads=1
 # Special 2D variables
 do_2d_special = False # Set select=5:ncpus=1:mpiprocs=1:ompthreads=1
-vars_2dspecial = ['pclass', 'pw', 'vmf']#, 'pw_sat']
-# Basic 3D variables
-# do_3d_vars = False
-# # Special 3D variables
+vars_2dspecial = ['pw_sat']#['pclass', 'pw', 'vmf', 'pw_sat']
+# Basic 3D variables - includes vertical pressure interpolation
+do_3d_vars = True
+# Special 3D variables
 # do_3d_special = False
 
 ########################################################
@@ -45,13 +43,21 @@ vars_2dspecial = ['pclass', 'pw', 'vmf']#, 'pw_sat']
 
 case = "sept1-4"
 # test_process = "ctl"
-test_process = "ncrf12h"
+# test_process = "ncrf12h"
 
 wrf_dom = "wrf_fine"
 nmem = 5 # number of ensemble members
 
-datdir = "/glade/derecho/scratch/ruppert/piccolo/"
-# datdir = "/glade/campaign/univ/uokl0053/"
+# Define time period to process 3D variables
+t0_3d = np.datetime64('2024-09-02T00:00:00')
+t1_3d = np.datetime64('2024-09-03T00:00:00')
+# t1_3d = np.datetime64('2024-09-02T00:40:00')
+
+# Scratch
+# datdir = "/glade/derecho/scratch/ruppert/piccolo/"
+# Campaign storage
+datdir = "/glade/campaign/univ/uokl0053/"
+# OSCER
 # datdir = "/ourdisk/hpc/radclouds/auto_archive_notyet/tape_2copies/piccolo/"
 
 # Ens-member string tags (e.g., memb_01, memb_02, etc.)
@@ -252,7 +258,7 @@ if do_2d_special:
         print("Processing "+wrffile)
 
         # Get variables for entire file
-        vars_ifile = get_2d_special_vars_ifile(wrffile, vars_2dspecial)
+        vars_ifile = get_vars_ifile(wrffile, vars_2dspecial, tag='2D')
 
         # Concatenate variables
         for ivar_str in vars_2dspecial:
@@ -270,4 +276,75 @@ if do_2d_special:
     print("Done writing out special 2D variables")
 
 ########################################################
+# Loop over ensemble members to process 3D variables
 ########################################################
+
+if do_3d_vars:
+
+    for test_process in ["ctl", "ncrf12h"]:
+
+        # Define new output pressure levels
+        dp=25
+        new_p_levels=np.arange(1000,0,-dp)
+        # new_p_levels=np.array([500,400])
+
+        # Get date tag for output files
+        def get_datetag(datetime):
+            # string = np.datetime_as_string(datetime, unit='h').replace("-","").replace(" ","").replace(":","")
+            string = np.datetime_as_string(datetime, unit='m').replace("-","").replace(" ","").replace(":","")
+            return string
+        t0_str = get_datetag(t0_3d)
+        t1_str = get_datetag(t1_3d)
+        tag_extra = '_'+t0_str+'-'+t1_str
+
+        from mpi4py import MPI
+        comm = MPI.COMM_WORLD
+        nproc = comm.Get_size()
+
+        # Get variable list
+        vars3d = var_list_3d()
+
+        # for memb_dir in memb_all:
+        memb_dir = memb_all[comm.rank]
+
+        print("Processing special 3D variables for "+memb_dir)
+
+        outdir, wrffiles, nfiles, npd = memb_dir_settings(datdir, case, test_process, wrf_dom, memb_dir)
+
+        # for ivar_str in vars3d:
+        for ivar_str in vars3d[3:]:
+        # for ivar_str in vars3d[0:1]:
+
+            # Read in variable from WRF files
+            # vars_alltime = {}
+            xtime_read = np.array([], dtype='datetime64[s]')
+            var_alltime = None
+            for ifile in range(nfiles):
+
+                # Open the WRF file
+                wrffile = wrffiles[ifile]
+                print()
+                # print("Processing "+wrffile)
+                print("Processing "+ivar_str+" for "+wrffile)
+
+                # Get variables for entire file
+                var_ifile, xtime_read = get_vars_ifile(wrffile, ivar_str, xtime_read, t0_3d, t1_3d, tag='3D', new_p_levels=new_p_levels)
+                # Check if dictionary is empty
+                # if not var_ifile:
+                if var_ifile is None:
+                    continue
+
+                # Concatenate variable
+                # Check if dectionary key exists
+                # if ivar_str in vars_alltime:
+                try:
+                    var_alltime = xr.concat((var_alltime, var_ifile), 'Time')
+                except:
+                    var_alltime = var_ifile.copy()
+
+            # Remove duplicate time steps
+            # vars_alltime[ivar_str] = vars_alltime[ivar_str].drop_duplicates(dim="Time", keep='first')
+            # Write out the variables
+            write_ncfile(outdir, var_alltime, ivar_str, tag_extra=tag_extra)
+
+    print("Done writing out 3D variables")

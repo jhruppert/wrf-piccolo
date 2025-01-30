@@ -28,13 +28,31 @@ def wrf_dims(wrffile):
     nx2 = lon1d.size
     nz = wrffile_read.dimensions['bottom_top'].size
     npd = wrffile_read.dimensions['Time'].size
+    wrffile_read.close()
     return lat1d, lon1d, nx1, nx2, nz, npd
 
 # Read arbitrary dimension size
 def get_file_dim(infile, dimname):
     file_read = Dataset(infile)
     ndim = file_read.dimensions[dimname].size
+    file_read.close()
     return ndim
+
+# Read post-processed file list and dimensions
+def get_postproc_dims(datdir, case, test_process, wrf_dom, memb_dir):
+    outdir = datdir+case+'/'+memb_dir+'/'+test_process+"/"+wrf_dom+"/post_proc/"
+    # Get file list, dimensions
+    postproc_files = get_wrf_file_list(outdir, "*nc")
+    # Find file tmpk
+    # ifile = np.where(['tmpk' in postproc_files[ifile] for ifile in range(len(postproc_files))])[0][0]
+    ifile = np.where(['HFX' in postproc_files[ifile] for ifile in range(len(postproc_files))])[0][0]
+    file_read = Dataset(postproc_files[ifile])
+    nt = file_read.dimensions['XTIME'].size
+    nx = file_read.dimensions['west_east'].size
+    ny = file_read.dimensions['south_north'].size
+    # p_levels = file_read.variables['p_interp'][...]
+    file_read.close()
+    return outdir, postproc_files, nt, nx, ny#, p_levels
 
 # Read WRF variable
 def wrf_var_read(infile, varname):
