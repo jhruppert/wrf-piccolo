@@ -28,10 +28,13 @@
 
 # FOR SPECIAL 2D VARS
 # FOR 3D VARS
-#PBS -l select=5:ncpus=1:mpiprocs=1:ompthreads=1
+###PBS -l select=5:ncpus=1:mpiprocs=1:ompthreads=1
+
+# FOR ISENTROPIC PROCESSING
+###PBS -l select=5:ncpus=1:mpiprocs=1:ompthreads=1
 
 # General
-###PBS -l select=1:ncpus=1:mpiprocs=1:ompthreads=1
+#PBS -l select=1:ncpus=1:mpiprocs=1:ompthreads=1
 
 source /glade/u/home/ruppert/.bashrc
 mamba activate plotting
@@ -39,7 +42,10 @@ mamba activate plotting
 # python wrf_maps.py
 # mpirun python delete_timerepeat.py
 # python post_proc.py
-mpirun python post_proc.py
+# mpirun python post_proc.py
+# python write_isentrop_binned.py
+# mpirun python write_isentrop_binned.py
+python write_binned.py
 
 # FOR SPECIAL 2D VARS
 # mpiexec -n 5 -ppn 1 python post_proc.py

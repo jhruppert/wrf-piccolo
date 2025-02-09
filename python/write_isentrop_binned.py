@@ -7,39 +7,28 @@
 # 1/28/25
 
 import numpy as np
-import xarray as xr
 from thermo_functions import *
 from post_proc_functions import *
 from mpi4py import MPI
 from write_isentrop_functions import *
-
-# Parallelization notes:
-#   Using mpi4py to distribute the work of reading and processing
-#   large-dimensional numpy arrays. The processed results are then
-#   passed back to the rank-0 node, which does the netcdf write-out.
-
-# Testing mode:
-#   all loops shortened to a single iteration and nt = 3
-# testing=True
-testing=False
+import pickle
+from read_wrf_piccolo import *
 
 comm = MPI.COMM_WORLD
 nproc = comm.Get_size()
+print("Number of processes: ",nproc)
 
 ########################################################
 # Main settings
 ########################################################
 
+# Skips processing of variable if set to True and file is found
+dont_overwrite=True
+dont_overwrite=False
+
 # Time bounds of processed 3D variables
 t0_3d = np.datetime64('2024-09-02T00:00:00')
 t1_3d = np.datetime64('2024-09-03T00:00:00')
-
-proc_var_list = ['tmpk', 'theta_v', 'qvapor', 'rho', 'condh', 'rthratlw', 'rthratlwc', 'rthratsw', 'rthratswc', 'w']
-nvars = len(proc_var_list)
-
-pclass_name = ['noncloud','deepc','congest','shallowc','strat','anvil','all']
-npclass = len(pclass_name)
-npclass_orig = npclass-2
 
 case = "sept1-4"
 test_process = "ctl"
@@ -65,29 +54,39 @@ memb_nums_str=np.arange(memb0,nmem+memb0,1).astype(str)
 nustr = np.char.zfill(memb_nums_str, 2)
 memb_all=np.char.add('memb_',nustr)
 
-# Kill all loops after single iteration for testing mode
-if testing:
-    nvars=1
-    nmem = 1
-    # npclass = 1
+# Get date tag for post_proc output files
+def get_datetag(datetime):
+    string = np.datetime_as_string(datetime, unit='m').replace("-","").replace(" ","").replace(":","")
+    return string
+t0_str = get_datetag(t0_3d)
+t1_str = get_datetag(t1_3d)
+tag_postproc = '_'+t0_str+'-'+t1_str
 
 ########################################################
 # Main functions
 ########################################################
 
-def run_binning(ipclass, bins, theta_e, invar, pclass_z):
+def run_binning(ipclass, theta_e, invar, pclass):
 
-    shape = theta_e.shape
-    nt = shape[0]
-    nz = shape[1]
+    bins = theta_e_bins()
+
+    nt = theta_e.shape[0]
+    nz = theta_e.shape[1]
     nbins = bins.size
+
+    # Expand PCLASS to 3D
+    pclass_z = pclass.expand_dims(dim={theta_e.dims[1]: theta_e.interp_level}, axis=1)
+    pclass_z = pclass_z.values
 
     # Mask out based on precipitation class
     # pclass_name = ['noncloud','deepc','congest','shallowc','strat','anvil','all']
     if ipclass <= 5:
         indices = (pclass_z != ipclass)
-        theta_e_masked = np.ma.masked_where(indices, theta_e, copy=True)
-        invar_masked = np.ma.masked_where(indices, invar, copy=True)
+        theta_e_masked = np.ma.masked_where(indices, theta_e.to_masked_array())#, copy=True)
+        invar_masked = np.ma.masked_where(indices, invar.to_masked_array())#, copy=True)
+        # condition = (pclass_z.values == ipclass)
+        # theta_e_masked = theta_e.where(condition)
+        # invar_masked = invar.where(condition)
     elif ipclass == 6:
     #     # MCS = mask out NONCLOUD and SHALLOW
     #     indices = ((pclass_z != 0) & (pclass_z != 3))
@@ -95,21 +94,24 @@ def run_binning(ipclass, bins, theta_e, invar, pclass_z):
     #     invar_masked = np.ma.masked_where(indices, invar, copy=True)
     # elif ipclass == 7:
         # Unmasked for "ALL" category
-        theta_e_masked = theta_e
-        invar_masked = invar
+        theta_e_masked = theta_e.to_masked_array()
+        invar_masked = invar.to_masked_array()
 
-    # Frequency of cloud-type vs. time
-    pclass_count = np.ndarray(nt, dtype=np.float64)
-    for it in range(nt):
-        pclass_count[it] = np.ma.count(theta_e_masked[it,2,:,:])
-
+    # Mean profiles
     theta_e_mean = np.ma.mean(theta_e_masked, axis=(2,3))
+    invar_mean   = np.ma.mean(invar_masked, axis=(2,3))
 
-    # Bin the variables from (x,y) --> (bin)
+    # Frequency of pclass vs. time
+    pclass_count = np.ndarray(nt, dtype=np.int64)
+    for it in range(nt):
+        # pclass_count[it] = np.ma.count(theta_e_masked[it,2,:,:])
+        pclass_count[it] = np.count_nonzero((pclass[it,...] == ipclass))
+
+    # Transform the variables from (x,y) --> (bin)
 
     dims = (nt,nz,nbins-1)
     invar_binned = np.full(dims, np.nan)
-    freq_binned = np.ndarray(dims, dtype=np.float64)
+    freq_binned = np.ndarray(dims, dtype=np.int64)
 
     nmin = 3 # minimum points to average
 
@@ -118,65 +120,77 @@ def run_binning(ipclass, bins, theta_e, invar, pclass_z):
             for ibin in range(nbins-1):
                 indices = ((theta_e_masked[it,iz,:,:] >= bins[ibin]) & (theta_e_masked[it,iz,:,:] < bins[ibin+1])).nonzero()
                 binfreq = indices[0].size
-                freq_binned[it,iz,ibin] = np.array(binfreq, dtype=np.float64)
+                freq_binned[it,iz,ibin] = np.array(binfreq, dtype=np.int64)
                 # Take mean across ID'd cells
                 if binfreq > nmin:
                     invar_binned[it,iz,ibin] = np.ma.mean(invar_masked[it,iz,indices[0],indices[1]])
 
-    # return freq_binned, invar_binned, theta_e_mean, pclass_count
-    return freq_binned.values, invar_binned.values, theta_e_mean.values, pclass_count.values
+    return bins, freq_binned, invar_binned, theta_e_mean, invar_mean, pclass_count
 
 ################################
 
-def driver_loop_write_ncdf(comm, datdir, bins, t0, t1, proc_var_list):
+def driver_loop_write_ncdf(memb_dir, datdir, tag_postproc, t0, t1):
 
-    nt = dims[0]
-    nz = dims[1]
+    # Get variable metadata and PCLASS names
+    proc_var_list, pclass_name = get_variable_list()
+    npclass = len(pclass_name)
 
-    # Read variables
-    theta_e, pclass_z, invar, pres = read_all_vars(comm, datdir,t0,t1,proc_var_list)
+    # Read independent variables
+    theta_e, pclass = read_vars_stage1(datdir, tag_postproc, t0=t0, t1=t1)
+    pres = theta_e.interp_level.values
 
-    for ipclass in range(npclass):
-    # for ipclass in range(0,2):
+    for ivar in range(len(proc_var_list)):
 
-        if comm.rank == 0:
+        # Check if variable was already done
+        if dont_overwrite:
+            skip=True
+            for ipclass in range(npclass):
+                pickle_file_ivar = datdir+'isentrop/'+proc_var_list[ivar]+'_'+pclass_name[ipclass]+'_'+tag_postproc+'.pkl'
+                if not os.path.isfile(pickle_file_ivar):
+                    skip=False
+                    break
+            if skip:
+                print("Skipping "+proc_var_list[ivar]+" for "+memb_dir)
+                continue
+
+        # Read variable to process
+        invar = read_vars_stage2(datdir, tag_postproc, proc_var_list[ivar])
+
+        print()
+        print("Running variable: ",proc_var_list[ivar]," for "+memb_dir)
+
+        # Loop over precipitation classes
+        for ipclass in range(npclass):
+
+            pickle_file_main = datdir+'isentrop/mainvars_'+pclass_name[ipclass]+'_'+tag_postproc+'.pkl'
+            pickle_file_ivar = datdir+'isentrop/'+proc_var_list[ivar]+'_'+pclass_name[ipclass]+'_'+tag_postproc+'.pkl'
+
+            # Check if processing of variable/ipclass is completed
+            if dont_overwrite:
+                if os.path.isfile(pickle_file_ivar):
+                    print("Skipping "+proc_var_list[ivar]+'/'+pclass_name[ipclass]+" for "+memb_dir)
+                    continue
+
             print()
-            print("Running ipclass: ",pclass_name[ipclass])
+            print("Running ipclass: ",pclass_name[ipclass]+" for "+memb_dir)
 
-        freq_binned, invar_binned, theta_e_mean, pclass_count = run_binning(ipclass,bins,theta_e,invar,pclass_z)
+            bins, freq_binned, invar_binned, theta_e_mean, invar_mean, pclass_count = run_binning(ipclass, theta_e, invar, pclass)
+            # run_binning(ipclass, theta_e, invar, pclass)
+            # continue
 
-        # Consolidate rebinned data onto Rank0 and write to netCDF file
-
-        if comm.rank > 0:
-
-            comm.Send(np.ascontiguousarray(invar_binned, dtype=np.float64), dest=0, tag=comm.rank)
-
-        else:
-        # Rank 0 - all data write-out
-
-            var_list_write=[]
-            var_list_write.append(bins)
-            var_list_write.append(pres)
-            var_list_write.append(theta_e_mean)
-            var_list_write.append(pclass_count)
-            var_list_write.append(freq_binned)
-            var_list_write.append(invar_binned)
-
-            for irank in range(1,nvars):
-                dims = (nt,nz,nbins-1)
-                invar_binned = np.empty(dims, dtype=np.float64)
-                comm.Recv(invar_binned, source=irank, tag=irank)
-                # check that the unique arrays are appearing on process 0
-                # print()
-                # print(invar_binned[1,:,30])
-                var_list_write.append(invar_binned)
-
-            # Write out to netCDF file
-
-            pclass_tag = pclass_name[ipclass]
-            file_out = datdir+'binned_isentrop_'+pclass_tag+'.nc'
-            var_names, descriptions, units, dims_set = var_regrid_metadata(nt,nz,nbins)
-            write_ncfile(file_out, var_list_write, var_names, descriptions, units, dims_set)
+            # Write out pickle files
+            if ivar == 0:
+                with open(pickle_file_main, 'wb') as file:
+                    pickle.dump({'bins':bins,
+                                'pres':pres,
+                                'theta_e_mean':theta_e_mean,
+                                'pclass_count':pclass_count,
+                                'freq_binned':freq_binned,},
+                                file)
+            with open(pickle_file_ivar, 'wb') as file:
+                pickle.dump({'invar_binned':invar_binned,
+                            'invar_mean':invar_mean,},
+                            file)
 
     return
 
@@ -184,22 +198,17 @@ def driver_loop_write_ncdf(comm, datdir, bins, t0, t1, proc_var_list):
 # Top-level loop
 ########################################################
 
-# #### Index aka Bin variable settings
-
-# Theta-e (equivalent potential temperature)
-fmin=305; fmax=365 # K
-nbins = 70
-bins=np.linspace(fmin,fmax,num=nbins)
-
 # Loop over ensemble members
 
-for memb_dir in memb_all[0:1]:
+# for memb_dir in memb_all:
 
-    if comm.rank == 0:
-        print()
-        print("Processing "+memb_dir)
+memb_dir = memb_all[comm.rank]
 
-    # Get dimensions and files
-    outdir, postproc_files, nt, nx, ny = get_postproc_dims(datdir, case, test_process, wrf_dom, memb_dir)
+# if comm.rank == 0:
 
-    driver_loop_write_ncdf(comm, outdir, bins, t0_3d, t1_3d, proc_var_list)
+# Get dimensions and files
+outdir, postproc_files, nt, nx, ny = get_postproc_dims(datdir, case, test_process, wrf_dom, memb_dir)
+
+driver_loop_write_ncdf(memb_dir, outdir, tag_postproc, t0_3d, t1_3d)
+
+print("Finished processing "+memb_dir)

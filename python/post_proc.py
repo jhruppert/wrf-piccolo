@@ -42,7 +42,7 @@ do_3d_vars = True
 ########################################################
 
 case = "sept1-4"
-# test_process = "ctl"
+test_process = "ctl"
 # test_process = "ncrf12h"
 
 wrf_dom = "wrf_fine"
